@@ -210,15 +210,9 @@ export default function NewAdPage() {
 
         dbHeaders.forEach((col, idx) => {
           if (!col) return; // skip non-DB columns (recommendation etc.)
-          const raw = cols[idx] ?? "";
-          if (NUMERIC_COLS.has(col)) {
-            // nullable cols (video_completion_rate) → null when empty, else 0
-            record[col] = raw === ""
-              ? (NULLABLE_COLS.has(col) ? null : 0)
-              : Number(raw);
-          } else {
-            record[col] = raw;
-          }
+          const raw = (cols[idx] ?? "").trim();
+          if (raw === "") return; // skip empty cells — don't overwrite existing DB values
+          record[col] = NUMERIC_COLS.has(col) ? Number(raw) : raw;
         });
 
         const adId  = String(record.ad_id  ?? "").trim();
@@ -229,8 +223,6 @@ export default function NewAdPage() {
 
         record.ad_id = adId;
         record.brand = brand;
-        // Ensure spend is always present (default 0)
-        if (record.spend == null) record.spend = 0;
         ads.push(record);
       }
 
@@ -257,8 +249,9 @@ export default function NewAdPage() {
       setCsvStatus({ ok: true, text: `Import complete — ${msg}.${errTxt} Redirecting to dashboard…` });
       setCsvFile(null);
       if (rowErrors.length) console.warn("CSV row errors:", rowErrors);
-      // Refresh dashboard with new data
-      setTimeout(() => { router.refresh(); router.push("/"); }, 1500);
+      // refresh() clears Next.js router cache; push navigates after cache is cleared
+      router.refresh();
+      setTimeout(() => router.push("/"), 800);
     } catch (err) {
       setCsvStatus({ ok: false, text: String(err) });
     } finally {
