@@ -46,7 +46,7 @@ export default function SettingsPage() {
   const [critTab, setCritTab] = useState<CritTab>("kill");
   const [newEmail,  setNewEmail]  = useState("");
   const [saved,     setSaved]     = useState(false);
-  const [sending,   setSending]   = useState<string | null>(null); // category being sent
+  const [sending,   setSending]   = useState(false);
   const [sendMsg,   setSendMsg]   = useState<{ ok: boolean; text: string } | null>(null);
   const isMount = useRef(true);
 
@@ -127,40 +127,47 @@ export default function SettingsPage() {
   }
 
   // ── Email send ────────────────────────────────────────────────────────────
-  async function sendReport(category: string) {
+  async function sendReport() {
     if (!email.recipients.length) {
       setSendMsg({ ok: false, text: "Add at least one recipient first." });
       return;
     }
-    setSending(category);
+    if (!email.categories.length) {
+      setSendMsg({ ok: false, text: "Select at least one category to include." });
+      return;
+    }
+    setSending(true);
     setSendMsg(null);
     try {
-      // Fetch raw ads, classify client-side with current criteria
-      const res  = await fetch("/api/ads");
-      const json = await res.json() as { ads: Ad[] };
+      // Fetch + classify once, then send one email per selected category
+      const res        = await fetch("/api/ads");
+      const json       = await res.json() as { ads: Ad[] };
       const classified = json.ads.map(ad => ({
         ...ad,
         _class: classifyWithCriteria(ad, criteria),
       })) as Ad[];
-      const filtered = classified.filter(ad => {
-        if (category === "ended") return ad._class.startsWith("ENDED");
-        return ad._class.toLowerCase() === category;
-      });
 
-      const catKey = category as keyof typeof criteria;
-      const rules  = criteria[catKey] ?? [];
-      const resp = await fetch("/api/send-report", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ category, recipients: email.recipients, ads: filtered, rules }),
-      });
-      const data = await resp.json();
-      if (data.error) throw new Error(typeof data.error === "object" ? data.error.message ?? JSON.stringify(data.error) : data.error);
-      setSendMsg({ ok: true, text: `Sent to ${email.recipients.join(", ")}` });
+      const results: string[] = [];
+      for (const category of email.categories) {
+        const filtered = classified.filter(ad =>
+          ad._class.toLowerCase() === category
+        );
+        const catKey = category as keyof typeof criteria;
+        const rules  = criteria[catKey] ?? [];
+        const resp   = await fetch("/api/send-report", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ category, recipients: email.recipients, ads: filtered, rules }),
+        });
+        const data = await resp.json();
+        if (data.error) throw new Error(typeof data.error === "object" ? data.error.message ?? JSON.stringify(data.error) : data.error);
+        results.push(`${category} (${filtered.length} ads)`);
+      }
+      setSendMsg({ ok: true, text: `Sent ${results.join(", ")} → ${email.recipients.join(", ")}` });
     } catch (err) {
       setSendMsg({ ok: false, text: String(err) });
     } finally {
-      setSending(null);
+      setSending(false);
     }
   }
 
@@ -475,34 +482,36 @@ export default function SettingsPage() {
                   <p className="text-xs text-on-surface-variant py-2">No recipients added yet.</p>
                 )}
 
-                {/* Send Now */}
+                {/* Send Report */}
                 <div className="border-t border-outline-variant pt-5 space-y-3">
-                  <p className="text-[10px] uppercase tracking-widest text-on-surface-variant">Send Report Now</p>
-                  <div className="flex flex-wrap gap-2">
-                    {["kill", "scale", "monitor", "testing"].map(cat => (
-                      <button
-                        key={cat}
-                        onClick={() => sendReport(cat)}
-                        disabled={!!sending}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-surface-container-high border border-outline-variant text-sm rounded-lg hover:bg-surface-container-highest disabled:opacity-50 transition-colors"
-                      >
-                        {sending === cat ? (
-                          <span className="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
-                        ) : (
-                          <span className="material-symbols-outlined text-[16px]">send</span>
-                        )}
-                        {cat.charAt(0).toUpperCase() + cat.slice(1)} List
-                      </button>
-                    ))}
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] uppercase tracking-widest text-on-surface-variant">Send Report Now</p>
+                    {email.categories.length > 0 && (
+                      <p className="text-[11px] text-on-surface-variant">
+                        Will send: {email.categories.map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(", ")}
+                      </p>
+                    )}
                   </div>
+                  <button
+                    onClick={sendReport}
+                    disabled={sending || !email.recipients.length || !email.categories.length}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-primary text-on-primary text-sm font-bold rounded-lg hover:opacity-90 disabled:opacity-40 transition-all"
+                  >
+                    {sending ? (
+                      <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+                    ) : (
+                      <span className="material-symbols-outlined text-[18px]">send</span>
+                    )}
+                    {sending ? "Sending…" : "Send Report"}
+                  </button>
                   {sendMsg && (
-                    <div className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm ${
+                    <div className={`flex items-start gap-2 px-4 py-3 rounded-lg border text-sm ${
                       sendMsg.ok
                         ? "bg-secondary/10 border-secondary/30 text-secondary"
                         : "bg-error-container/10 border-error-container/30 text-error"
                     }`}>
-                      <span className="material-symbols-outlined text-[16px]">{sendMsg.ok ? "check_circle" : "error"}</span>
-                      {sendMsg.text}
+                      <span className="material-symbols-outlined text-[16px] mt-0.5 shrink-0">{sendMsg.ok ? "check_circle" : "error"}</span>
+                      <span>{sendMsg.text}</span>
                     </div>
                   )}
                 </div>
