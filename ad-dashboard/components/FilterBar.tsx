@@ -33,7 +33,7 @@ interface DropdownProps {
   open: boolean;
   onToggle: () => void;
   children: React.ReactNode;
-  containerRef: React.RefObject<HTMLDivElement | null>;
+  containerRef: React.RefObject<HTMLDivElement>;
   icon?: string;
 }
 
@@ -72,10 +72,10 @@ export default function FilterBar({ filters, platforms, brands, themes, maxDate,
   const [brandOpen,    setBrandOpen]    = useState(false);
   const [themeOpen,    setThemeOpen]    = useState(false);
 
-  const dateRef     = useRef<HTMLDivElement>(null);
-  const platformRef = useRef<HTMLDivElement>(null);
-  const brandRef    = useRef<HTMLDivElement>(null);
-  const themeRef    = useRef<HTMLDivElement>(null);
+  const dateRef     = useRef<HTMLDivElement>(null!);
+  const platformRef = useRef<HTMLDivElement>(null!);
+  const brandRef    = useRef<HTMLDivElement>(null!);
+  const themeRef    = useRef<HTMLDivElement>(null!);
 
   useEffect(() => {
     function handler(e: MouseEvent) {
