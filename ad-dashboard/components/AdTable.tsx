@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { Ad } from "@/lib/types";
 import { fmtINR, fmtRoas, fmtPct } from "@/lib/format";
 import { THRESHOLDS } from "@/lib/analyzer";
+import { useSettings } from "@/contexts/SettingsProvider";
 import Badge from "./Badge";
 
 type SortKey = "spend" | "roas" | "days_running" | "revenue" | "ctr";
@@ -40,11 +41,15 @@ interface Props {
 }
 
 export default function AdTable({ ads, emptyMessage = "No ads in this category." }: Props) {
+  const { settings } = useSettings();
   const [sortKey,  setSortKey]  = useState<SortKey>("spend");
   const [sortDir,  setSortDir]  = useState<SortDir>("desc");
   const [page,     setPage]     = useState(1);
   const [colsOpen, setColsOpen] = useState(false);
-  const [visible,  setVisible]  = useState<Set<ColKey>>(new Set(DEFAULT_VISIBLE));
+  // Init from global settings; local toggles override for the session
+  const [visible,  setVisible]  = useState<Set<ColKey>>(
+    () => new Set(settings.visibleColumns as ColKey[])
+  );
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === "desc" ? "asc" : "desc");

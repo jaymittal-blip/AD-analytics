@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import AppShell from "@/components/AppShell";
+import SettingsProvider from "@/contexts/SettingsProvider";
 
 export const metadata: Metadata = {
   title: "Ad Intel — Ad Performance Intelligence",
@@ -17,7 +18,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-screen bg-background text-on-surface font-sans antialiased overflow-hidden">
-        <AppShell>{children}</AppShell>
+        <SettingsProvider>
+          <AppShell>{children}</AppShell>
+        </SettingsProvider>
       </body>
     </html>
   );
