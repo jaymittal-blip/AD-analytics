@@ -2,38 +2,50 @@
 
 import { useState, useMemo } from "react";
 import { Ad } from "@/lib/types";
-import { fmtINR, fmtRoas, fmtPct } from "@/lib/format";
+import { fmtINR, fmtRoas, fmtPct, fmtNumber } from "@/lib/format";
 import { THRESHOLDS } from "@/lib/analyzer";
 import { useSettings } from "@/contexts/SettingsProvider";
 import Badge from "./Badge";
 
-type SortKey = "spend" | "roas" | "days_running" | "revenue" | "ctr";
+type SortKey =
+  | "spend" | "roas" | "days_running" | "revenue" | "ctr"
+  | "impressions" | "clicks" | "conversions" | "cpc" | "cpa"
+  | "creative_score" | "landing_page_score" | "frequency" | "video_completion_rate";
+
 type SortDir = "asc" | "desc";
 
 const PAGE_SIZE = 15;
 
 const ALL_COLUMNS = [
-  { key: "ad_id",           label: "AD ID",         align: "left",  sortKey: null          },
-  { key: "_class",          label: "Action",        align: "left",  sortKey: null          },
-  { key: "platform",        label: "Platform",      align: "left",  sortKey: null          },
-  { key: "brand",           label: "Brand",         align: "left",  sortKey: null          },
-  { key: "creative_theme",  label: "Creative Theme",align: "left",  sortKey: null          },
-  { key: "target_audience", label: "Audience",      align: "left",  sortKey: null          },
-  { key: "status",          label: "Status",        align: "left",  sortKey: null          },
-  { key: "days_running",    label: "Days",          align: "right", sortKey: "days_running" },
-  { key: "spend",           label: "Spend",         align: "right", sortKey: "spend"        },
-  { key: "roas",            label: "ROAS",          align: "right", sortKey: "roas"         },
-  { key: "ctr",             label: "CTR",           align: "right", sortKey: "ctr"          },
-  { key: "revenue",         label: "Revenue",       align: "right", sortKey: "revenue"      },
+  { key: "ad_id",                 label: "AD ID",                  align: "left",  sortKey: null                    },
+  { key: "_class",                label: "Action",                 align: "left",  sortKey: null                    },
+  { key: "platform",              label: "Platform",               align: "left",  sortKey: null                    },
+  { key: "brand",                 label: "Brand",                  align: "left",  sortKey: null                    },
+  { key: "category",              label: "Category",               align: "left",  sortKey: null                    },
+  { key: "ad_type",               label: "Ad Type",                align: "left",  sortKey: null                    },
+  { key: "target_audience",       label: "Audience",               align: "left",  sortKey: null                    },
+  { key: "creative_theme",        label: "Creative Theme",         align: "left",  sortKey: null                    },
+  { key: "status",                label: "Status",                 align: "left",  sortKey: null                    },
+  { key: "start_date",            label: "Start Date",             align: "left",  sortKey: null                    },
+  { key: "days_running",          label: "Days",                   align: "right", sortKey: "days_running"          },
+  { key: "spend",                 label: "Spend",                  align: "right", sortKey: "spend"                 },
+  { key: "revenue",               label: "Revenue",                align: "right", sortKey: "revenue"               },
+  { key: "roas",                  label: "ROAS",                   align: "right", sortKey: "roas"                  },
+  { key: "impressions",           label: "Impressions",            align: "right", sortKey: "impressions"           },
+  { key: "clicks",                label: "Clicks",                 align: "right", sortKey: "clicks"                },
+  { key: "ctr",                   label: "CTR",                    align: "right", sortKey: "ctr"                   },
+  { key: "conversions",           label: "Conversions",            align: "right", sortKey: "conversions"           },
+  { key: "cpc",                   label: "CPC",                    align: "right", sortKey: "cpc"                   },
+  { key: "cpa",                   label: "CPA",                    align: "right", sortKey: "cpa"                   },
+  { key: "creative_score",        label: "Creative Score",         align: "right", sortKey: "creative_score"        },
+  { key: "landing_page_score",    label: "Landing Page Score",     align: "right", sortKey: "landing_page_score"    },
+  { key: "frequency",             label: "Frequency",              align: "right", sortKey: "frequency"             },
+  { key: "video_completion_rate", label: "Video Completion Rate",  align: "right", sortKey: "video_completion_rate" },
 ] as const;
 
 type ColKey = (typeof ALL_COLUMNS)[number]["key"];
 
 const ALWAYS_ON = new Set<ColKey>(["ad_id", "_class"]);
-const DEFAULT_VISIBLE = new Set<ColKey>([
-  "ad_id", "_class", "platform", "brand", "creative_theme",
-  "target_audience", "days_running", "spend", "roas", "ctr", "revenue",
-]);
 
 interface Props {
   ads: Ad[];
@@ -46,10 +58,15 @@ export default function AdTable({ ads, emptyMessage = "No ads in this category."
   const [sortDir,  setSortDir]  = useState<SortDir>("desc");
   const [page,     setPage]     = useState(1);
   const [colsOpen, setColsOpen] = useState(false);
-  // Init from global settings; local toggles override for the session
   const [visible,  setVisible]  = useState<Set<ColKey>>(
     () => new Set(settings.visibleColumns as ColKey[])
   );
+
+  // Keep visible in sync when settings change (e.g. after visiting Settings page)
+  useMemo(() => {
+    setVisible(new Set(settings.visibleColumns as ColKey[]));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.visibleColumns.join(",")]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === "desc" ? "asc" : "desc");
@@ -68,8 +85,8 @@ export default function AdTable({ ads, emptyMessage = "No ads in this category."
 
   const sorted = useMemo(() => {
     return [...ads].sort((a, b) => {
-      const av = (a[sortKey as keyof Ad] as number) ?? 0;
-      const bv = (b[sortKey as keyof Ad] as number) ?? 0;
+      const av = ((a as unknown as Record<string, unknown>)[sortKey] as number) ?? 0;
+      const bv = ((b as unknown as Record<string, unknown>)[sortKey] as number) ?? 0;
       return sortDir === "desc" ? bv - av : av - bv;
     });
   }, [ads, sortKey, sortDir]);
@@ -86,18 +103,54 @@ export default function AdTable({ ads, emptyMessage = "No ads in this category."
 
   function renderCell(ad: Ad, key: ColKey) {
     switch (key) {
-      case "ad_id":           return <span className="font-mono text-[12px] text-on-surface-variant whitespace-nowrap">{ad.ad_id}</span>;
-      case "_class":          return <Badge cls={ad._class} />;
-      case "platform":        return <span className="text-sm">{ad.platform}</span>;
-      case "brand":           return <span className="text-sm">{ad.brand}</span>;
-      case "creative_theme":  return <span className="text-sm italic text-on-surface-variant truncate max-w-[150px] block" title={ad.creative_theme}>{ad.creative_theme}</span>;
-      case "target_audience": return <span className="text-sm text-on-surface-variant whitespace-nowrap">{ad.target_audience}</span>;
-      case "status":          return <span className="text-xs text-on-surface-variant whitespace-nowrap">{ad.status}</span>;
-      case "days_running":    return <span className="font-mono text-sm">{ad.days_running}</span>;
-      case "spend":           return <span className="font-mono text-sm font-bold">{fmtINR(ad.spend)}</span>;
-      case "roas":            return <span className={`font-mono text-sm font-bold ${roasColor(ad.roas)}`}>{fmtRoas(ad.roas)}</span>;
-      case "ctr":             return <span className="font-mono text-sm text-on-surface-variant">{fmtPct(ad.ctr)}</span>;
-      case "revenue":         return <span className="font-mono text-sm text-on-surface-variant">{fmtINR(ad.revenue)}</span>;
+      case "ad_id":
+        return <span className="font-mono text-[12px] text-on-surface-variant whitespace-nowrap">{ad.ad_id}</span>;
+      case "_class":
+        return <Badge cls={ad._class} />;
+      case "platform":
+        return <span className="text-sm">{ad.platform}</span>;
+      case "brand":
+        return <span className="text-sm">{ad.brand}</span>;
+      case "category":
+        return <span className="text-sm text-on-surface-variant">{ad.category}</span>;
+      case "ad_type":
+        return <span className="text-sm text-on-surface-variant">{ad.ad_type}</span>;
+      case "target_audience":
+        return <span className="text-sm text-on-surface-variant whitespace-nowrap">{ad.target_audience}</span>;
+      case "creative_theme":
+        return <span className="text-sm italic text-on-surface-variant truncate max-w-[150px] block" title={ad.creative_theme}>{ad.creative_theme}</span>;
+      case "status":
+        return <span className="text-xs text-on-surface-variant whitespace-nowrap">{ad.status}</span>;
+      case "start_date":
+        return <span className="font-mono text-[12px] text-on-surface-variant whitespace-nowrap">{ad.start_date}</span>;
+      case "days_running":
+        return <span className="font-mono text-sm">{ad.days_running}</span>;
+      case "spend":
+        return <span className="font-mono text-sm font-bold">{fmtINR(ad.spend)}</span>;
+      case "revenue":
+        return <span className="font-mono text-sm text-on-surface-variant">{fmtINR(ad.revenue)}</span>;
+      case "roas":
+        return <span className={`font-mono text-sm font-bold ${roasColor(ad.roas)}`}>{fmtRoas(ad.roas)}</span>;
+      case "impressions":
+        return <span className="font-mono text-sm text-on-surface-variant">{fmtNumber(ad.impressions)}</span>;
+      case "clicks":
+        return <span className="font-mono text-sm text-on-surface-variant">{fmtNumber(ad.clicks)}</span>;
+      case "ctr":
+        return <span className="font-mono text-sm text-on-surface-variant">{fmtPct(ad.ctr)}</span>;
+      case "conversions":
+        return <span className="font-mono text-sm text-on-surface-variant">{fmtNumber(ad.conversions)}</span>;
+      case "cpc":
+        return <span className="font-mono text-sm text-on-surface-variant">{fmtINR(ad.cpc)}</span>;
+      case "cpa":
+        return <span className="font-mono text-sm text-on-surface-variant">{fmtINR(ad.cpa)}</span>;
+      case "creative_score":
+        return <span className="font-mono text-sm text-on-surface-variant">{ad.creative_score?.toFixed(1) ?? "—"}</span>;
+      case "landing_page_score":
+        return <span className="font-mono text-sm text-on-surface-variant">{ad.landing_page_score?.toFixed(1) ?? "—"}</span>;
+      case "frequency":
+        return <span className="font-mono text-sm text-on-surface-variant">{ad.frequency?.toFixed(2) ?? "—"}</span>;
+      case "video_completion_rate":
+        return <span className="font-mono text-sm text-on-surface-variant">{ad.video_completion_rate != null ? fmtPct(ad.video_completion_rate) : "—"}</span>;
     }
   }
 
@@ -165,7 +218,7 @@ export default function AdTable({ ads, emptyMessage = "No ads in this category."
               Columns
             </button>
             {colsOpen && (
-              <div className="absolute bottom-full right-0 mb-1 z-50 bg-surface-container-high border border-outline-variant rounded-xl shadow-xl p-3 min-w-[180px]">
+              <div className="absolute bottom-full right-0 mb-1 z-50 bg-surface-container-high border border-outline-variant rounded-xl shadow-xl p-3 min-w-[200px] max-h-[340px] overflow-y-auto">
                 <p className="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2 px-1">Toggle Columns</p>
                 {ALL_COLUMNS.map(col => (
                   <label
