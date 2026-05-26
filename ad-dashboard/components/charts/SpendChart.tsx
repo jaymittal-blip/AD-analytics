@@ -15,7 +15,7 @@ export default function SpendChart({ title, rows, barColor = "#ff5451" }: Props)
   return (
     <div className="tonal-card bg-[#1A1A1A] border border-[#262626] rounded-xl p-5 flex flex-col gap-4 hover:border-[#404040] transition-colors">
       <h3 className="text-[10px] uppercase tracking-widest text-on-surface-variant">{title}</h3>
-      <div className="space-y-3 flex-1">
+      <div className="space-y-3">
         {top5.length === 0 && (
           <p className="text-sm text-on-surface-variant py-4 text-center">No data</p>
         )}
