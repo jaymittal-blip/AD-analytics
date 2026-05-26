@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSettings } from "@/contexts/SettingsProvider";
 import {
   ALL_COLUMNS, RULE_COLUMNS, NUMERIC_RULE_KEYS, DEFAULT_CRITERIA,
@@ -33,7 +33,7 @@ function Section({ icon, title, children }: { icon: string; title: string; child
 }
 
 export default function SettingsPage() {
-  const { settings, update, save, discard, dirty } = useSettings();
+  const { settings, savedSettings, update, save, discard, dirty } = useSettings();
 
   // ── Local draft state ──────────────────────────────────────────────────────
   const [visibleCols, setVisibleCols] = useState<string[]>(settings.visibleColumns);
@@ -44,6 +44,15 @@ export default function SettingsPage() {
   const [critTab, setCritTab] = useState<CritTab>("kill");
   const [newEmail, setNewEmail] = useState("");
   const [saved, setSaved]     = useState(false);
+  const isMount = useRef(true);
+
+  // Live preview: push criteria + visible columns to context on every change
+  // so the Analytics dashboard updates in real-time without needing to save first.
+  useEffect(() => {
+    if (isMount.current) { isMount.current = false; return; }
+    update({ criteria, visibleColumns: visibleCols });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [criteria, visibleCols]);
 
   function toggleCol(key: string) {
     const col = ALL_COLUMNS.find(c => c.key === key);
@@ -122,9 +131,9 @@ export default function SettingsPage() {
   }
 
   function handleDiscard() {
-    setVisibleCols(settings.visibleColumns);
-    setCriteria(JSON.parse(JSON.stringify(settings.criteria)));
-    setEmail({ ...settings.email });
+    setVisibleCols(savedSettings.visibleColumns);
+    setCriteria(JSON.parse(JSON.stringify(savedSettings.criteria)));
+    setEmail({ ...savedSettings.email });
     discard();
   }
 

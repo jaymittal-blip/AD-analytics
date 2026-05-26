@@ -2,8 +2,8 @@
 
 import { useState, useMemo } from "react";
 import { TabId, Ad } from "@/lib/types";
-import { THRESHOLDS, breakdownByField, groupAds } from "@/lib/analyzer";
-import { classifyWithCriteria } from "@/lib/settings";
+import { breakdownByField, groupAds } from "@/lib/analyzer";
+import { classifyWithCriteria, CriteriaMap, Rule, NUMERIC_RULE_KEYS } from "@/lib/settings";
 import { fmtINR } from "@/lib/format";
 import { useSettings } from "@/contexts/SettingsProvider";
 import AdTable from "./AdTable";
@@ -21,47 +21,59 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "all",     label: "All Ads"   },
 ];
 
-const CRITERIA_COPY: Record<TabId, React.ReactNode> = {
-  kill: (
-    <>
-      <strong>Kill criteria (active ads):</strong> ROAS &lt;{" "}
-      <span className="text-primary-container font-bold">{THRESHOLDS.ROAS_KILL}x</span> AND (running ≥{" "}
-      <span className="text-primary-container font-bold">{THRESHOLDS.MIN_DAYS} days</span> OR spent ≥{" "}
-      <span className="text-primary-container font-bold">{fmtINR(THRESHOLDS.MIN_SPEND)}</span>). These ads have
-      burned through enough time or money and are still losing.
-    </>
-  ),
-  scale: (
-    <>
-      <strong>Scale criteria:</strong> ROAS ≥{" "}
-      <span className="text-secondary font-bold">{THRESHOLDS.ROAS_SCALE}x</span> AND spent ≥{" "}
-      <span className="text-secondary font-bold">{fmtINR(THRESHOLDS.MIN_SPEND_SCALE)}</span> AND Active.
-      Proven performers — increase budget to capture more revenue.
-    </>
-  ),
-  monitor: (
-    <>
-      <strong>Monitor:</strong> Active, proven ads with ROAS between{" "}
-      <span className="text-tertiary font-bold">{THRESHOLDS.ROAS_KILL}x – {THRESHOLDS.ROAS_SCALE}x</span>.
-      Not bad enough to kill, not strong enough to scale yet.
-    </>
-  ),
-  testing: (
-    <>
-      <strong>Still testing — no action yet:</strong> Active ads with less than{" "}
-      <span className="text-on-surface font-bold">{THRESHOLDS.MIN_DAYS} days</span> AND less than{" "}
-      <span className="text-on-surface font-bold">{fmtINR(THRESHOLDS.MIN_SPEND)}</span> spent.
-    </>
-  ),
-  ended: (
-    <>
-      Historical reference only — completed or paused ads.{" "}
-      <strong>ENDED_WIN</strong> = high-ROAS winner. <strong>ENDED_LOSS</strong> = proven loser.{" "}
-      <strong>ENDED_OK</strong> = neutral.
-    </>
-  ),
-  all: <>All ads across all categories. Use filters and search to explore.</>,
+const RULE_COL_LABEL: Record<string, string> = {
+  ad_id: "Ad ID", platform: "Platform", brand: "Brand", category: "Category",
+  ad_type: "Ad Type", target_audience: "Audience", creative_theme: "Creative Theme",
+  status: "Status", start_date: "Start Date", days_running: "Days Running",
+  spend: "Spend", revenue: "Revenue", roas: "ROAS", impressions: "Impressions",
+  clicks: "Clicks", ctr: "CTR", conversions: "Conversions", cpc: "CPC", cpa: "CPA",
+  creative_score: "Creative Score", landing_page_score: "Landing Page Score",
+  frequency: "Frequency", video_completion_rate: "Video Completion Rate",
 };
+
+function fmtRuleVal(column: string, value: Rule["value"]): string {
+  if (typeof value === "string") return `"${value}"`;
+  if (column === "spend" || column === "revenue" || column === "cpc" || column === "cpa") return fmtINR(value);
+  if (column === "roas") return `${value}x`;
+  if (column === "ctr" || column === "video_completion_rate") return `${value}%`;
+  if (column === "days_running") return `${value} days`;
+  return String(value);
+}
+
+const CRITERIA_HEADER: Partial<Record<TabId, string>> = {
+  kill:    "Kill criteria (active ads):",
+  scale:   "Scale criteria:",
+  monitor: "Monitor criteria:",
+  testing: "Testing criteria:",
+};
+
+function CriteriaBanner({ tab, criteria }: { tab: TabId; criteria: CriteriaMap }) {
+  if (tab === "ended") return (
+    <>Historical reference only — completed or paused ads.{" "}
+    <strong>ENDED_WIN</strong> = high-ROAS winner. <strong>ENDED_LOSS</strong> = proven loser.{" "}
+    <strong>ENDED_OK</strong> = neutral.</>
+  );
+  if (tab === "all") return <>All ads across all categories. Use filters and search to explore.</>;
+
+  const rules = criteria[tab as keyof CriteriaMap] ?? [];
+  if (rules.length === 0) return <span>No criteria defined for <strong>{tab}</strong> — ads won&apos;t be classified here.</span>;
+
+  return (
+    <>
+      <strong>{CRITERIA_HEADER[tab]}</strong>{" "}
+      {rules.map((rule, i) => (
+        <span key={rule.id}>
+          {i > 0 && <span className="font-semibold text-primary"> {rule.logic} </span>}
+          {RULE_COL_LABEL[rule.column] ?? rule.column}{" "}
+          <span className="font-mono">{rule.operator}</span>{" "}
+          <span className={`font-bold ${NUMERIC_RULE_KEYS.has(rule.column) ? "text-primary-container" : "text-tertiary"}`}>
+            {fmtRuleVal(rule.column, rule.value)}
+          </span>
+        </span>
+      ))}
+    </>
+  );
+}
 
 const TABLE_HEADING: Record<TabId, string> = {
   kill:    "Stop these {n} ads immediately",
@@ -219,7 +231,9 @@ export default function Dashboard({ rawAds, fetchedAt }: DashboardProps) {
         {/* Criteria banner */}
         <div className="bg-on-primary-container/15 border border-primary-container/25 px-5 py-3 rounded-xl flex items-start gap-3">
           <span className="material-symbols-outlined text-primary-container text-[20px] mt-0.5 shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
-          <p className="text-sm text-on-surface leading-relaxed">{CRITERIA_COPY[activeTab]}</p>
+          <p className="text-sm text-on-surface leading-relaxed">
+            <CriteriaBanner tab={activeTab} criteria={settings.criteria} />
+          </p>
         </div>
 
         {/* Table */}

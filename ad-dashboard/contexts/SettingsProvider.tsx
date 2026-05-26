@@ -7,11 +7,12 @@ import {
 import { AppSettings, DEFAULT_SETTINGS } from "@/lib/settings";
 
 interface SettingsCtx {
-  settings: AppSettings;
-  update:   (patch: Partial<AppSettings>) => void;
-  save:     () => void;
-  discard:  () => void;
-  dirty:    boolean;
+  settings:      AppSettings;
+  savedSettings: AppSettings;
+  update:        (patch: Partial<AppSettings>) => void;
+  save:          () => void;
+  discard:       () => void;
+  dirty:         boolean;
 }
 
 const Ctx = createContext<SettingsCtx | null>(null);
@@ -60,7 +61,7 @@ export default function SettingsProvider({ children }: { children: ReactNode }) 
   }, [saved]);
 
   return (
-    <Ctx.Provider value={{ settings, update, save, discard, dirty }}>
+    <Ctx.Provider value={{ settings, savedSettings: saved, update, save, discard, dirty }}>
       {children}
     </Ctx.Provider>
   );
