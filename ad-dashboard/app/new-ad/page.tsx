@@ -78,6 +78,7 @@ export default function NewAdPage() {
         ...prev,
         platform: prev.platform || (d.platforms?.[0] ?? FALLBACK_PLATFORMS[0]),
         ad_type:  prev.ad_type  || (d.adTypes?.[0]  ?? FALLBACK_AD_TYPES[0]),
+        brand:    prev.brand    || "",
       }));
     }).catch(() => {/* keep fallbacks */});
   }, []);
@@ -301,7 +302,10 @@ export default function NewAdPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field label="Brand *" error={errors.brand}>
-                    <Input placeholder="e.g. Man Matters" value={form.brand} onChange={f("brand")} />
+                    <Select value={form.brand} onChange={f("brand")}>
+                      <option value="">Select brand…</option>
+                      {meta.brands.map(b => <option key={b}>{b}</option>)}
+                    </Select>
                   </Field>
                   <Field label="Category *" error={errors.category}>
                     <Input placeholder="e.g. Hair Care" value={form.category} onChange={f("category")} />
