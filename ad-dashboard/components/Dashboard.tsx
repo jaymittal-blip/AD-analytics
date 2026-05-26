@@ -91,15 +91,21 @@ function applyFilters(ads: Ad[], filters: Filters): Ad[] {
         ad.status.toLowerCase().includes(q);
       if (!match) return false;
     }
-    if (filters.platform && ad.platform !== filters.platform)       return false;
-    if (filters.brand    && ad.brand    !== filters.brand)           return false;
-    if (filters.theme    && ad.creative_theme !== filters.theme)     return false;
-    if (filters.dateFrom) {
-      if (new Date(ad.start_date) < new Date(filters.dateFrom))     return false;
+    if (filters.platform && ad.platform !== filters.platform)   return false;
+    if (filters.brand    && ad.brand    !== filters.brand)       return false;
+    if (filters.theme    && ad.creative_theme !== filters.theme) return false;
+
+    // Date: include ad if its running period overlaps with the selected range.
+    // Ad ran from start_date to start_date + days_running.
+    if (filters.dateFrom || filters.dateTo) {
+      const adStart = new Date(ad.start_date);
+      const adEnd   = new Date(ad.start_date);
+      adEnd.setDate(adEnd.getDate() + (ad.days_running ?? 0));
+
+      if (filters.dateTo   && adStart > new Date(filters.dateTo))   return false;
+      if (filters.dateFrom && adEnd   < new Date(filters.dateFrom)) return false;
     }
-    if (filters.dateTo) {
-      if (new Date(ad.start_date) > new Date(filters.dateTo))       return false;
-    }
+
     return true;
   });
 }
@@ -112,6 +118,12 @@ export default function Dashboard({ groups, fetchedAt }: DashboardProps) {
   const platforms = useMemo(() => [...new Set(groups.all.map(a => a.platform))].sort(), [groups.all]);
   const brands    = useMemo(() => [...new Set(groups.all.map(a => a.brand))].sort(),    [groups.all]);
   const themes    = useMemo(() => [...new Set(groups.all.map(a => a.creative_theme))].sort(), [groups.all]);
+
+  // Latest start_date in the dataset — date presets are relative to this, not today
+  const maxDate = useMemo(() => {
+    const dates = groups.all.map(a => new Date(a.start_date).getTime()).filter(t => !isNaN(t));
+    return dates.length > 0 ? new Date(Math.max(...dates)) : new Date();
+  }, [groups.all]);
 
   // Apply filters then re-group
   const filteredAll    = useMemo(() => applyFilters(groups.all, filters), [groups.all, filters]);
@@ -212,6 +224,7 @@ export default function Dashboard({ groups, fetchedAt }: DashboardProps) {
           platforms={platforms}
           brands={brands}
           themes={themes}
+          maxDate={maxDate}
           onChange={setFilters}
         />
 

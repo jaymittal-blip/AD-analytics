@@ -62,10 +62,11 @@ interface Props {
   platforms: string[];
   brands:    string[];
   themes:    string[];
+  maxDate:   Date;   // most recent start_date in the dataset — presets are relative to this
   onChange:  (f: Filters) => void;
 }
 
-export default function FilterBar({ filters, platforms, brands, themes, onChange }: Props) {
+export default function FilterBar({ filters, platforms, brands, themes, maxDate, onChange }: Props) {
   const [dateOpen,     setDateOpen]     = useState(false);
   const [platformOpen, setPlatformOpen] = useState(false);
   const [brandOpen,    setBrandOpen]    = useState(false);
@@ -92,8 +93,9 @@ export default function FilterBar({ filters, platforms, brands, themes, onChange
       onChange({ ...filters, dateFrom: "", dateTo: "", datePreset: "All Time" });
       setDateOpen(false);
     } else if (days > 0) {
-      const to   = new Date();
-      const from = new Date();
+      // Use dataset's latest date so presets work on historical data
+      const to   = new Date(maxDate);
+      const from = new Date(maxDate);
       from.setDate(from.getDate() - days);
       onChange({ ...filters, dateFrom: isoDate(from), dateTo: isoDate(to), datePreset: label });
       setDateOpen(false);
