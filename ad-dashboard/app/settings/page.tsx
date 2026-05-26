@@ -147,10 +147,12 @@ export default function SettingsPage() {
         return ad._class.toLowerCase() === category;
       });
 
+      const catKey = category as keyof typeof criteria;
+      const rules  = criteria[catKey] ?? [];
       const resp = await fetch("/api/send-report", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ category, recipients: email.recipients, ads: filtered }),
+        body:    JSON.stringify({ category, recipients: email.recipients, ads: filtered, rules }),
       });
       const data = await resp.json();
       if (data.error) throw new Error(typeof data.error === "object" ? data.error.message ?? JSON.stringify(data.error) : data.error);
