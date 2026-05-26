@@ -7,7 +7,9 @@ interface Props {
 }
 
 export default function SpendChart({ title, rows, barColor = "#ff5451" }: Props) {
-  const top5 = rows.slice(0, 5);
+  const top5 = rows
+    .filter(([key, val]) => key && key !== "Unknown" && val > 0)
+    .slice(0, 5);
   const max  = top5[0]?.[1] ?? 1;
 
   return (
