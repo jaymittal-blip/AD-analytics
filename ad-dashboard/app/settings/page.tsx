@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSettings } from "@/contexts/SettingsProvider";
 import {
-  ALL_COLUMNS, RULE_COLUMNS, DEFAULT_CRITERIA,
+  ALL_COLUMNS, RULE_COLUMNS, NUMERIC_RULE_KEYS, DEFAULT_CRITERIA,
   Rule, Operator, Logic, CriteriaMap, EmailSettings,
 } from "@/lib/settings";
 
@@ -57,7 +57,18 @@ export default function SettingsPage() {
   function updateRule(tab: CritTab, idx: number, patch: Partial<Rule>) {
     setCriteria(prev => {
       const rules = [...prev[tab]];
-      rules[idx]  = { ...rules[idx], ...patch };
+      const updated = { ...rules[idx], ...patch };
+      // When column changes, reset operator and value to sensible defaults
+      if (patch.column && patch.column !== rules[idx].column) {
+        if (NUMERIC_RULE_KEYS.has(patch.column)) {
+          updated.operator = "<";
+          updated.value    = 0;
+        } else {
+          updated.operator = "=";
+          updated.value    = "";
+        }
+      }
+      rules[idx] = updated;
       return { ...prev, [tab]: rules };
     });
   }
@@ -260,21 +271,34 @@ export default function SettingsPage() {
                         <select
                           value={rule.operator}
                           onChange={e => updateRule(critTab, idx, { operator: e.target.value as Operator })}
-                          className="w-full bg-background border border-outline-variant rounded px-3 py-2 text-sm text-on-surface focus:ring-1 focus:ring-primary outline-none font-mono"
+                          disabled={!NUMERIC_RULE_KEYS.has(rule.column)}
+                          className="w-full bg-background border border-outline-variant rounded px-3 py-2 text-sm text-on-surface focus:ring-1 focus:ring-primary outline-none font-mono disabled:opacity-50"
                         >
-                          {OPERATORS.map(op => <option key={op} value={op}>{op}</option>)}
+                          {(NUMERIC_RULE_KEYS.has(rule.column) ? OPERATORS : ["="]).map(op => (
+                            <option key={op} value={op}>{op}</option>
+                          ))}
                         </select>
                       </div>
 
                       {/* Value */}
                       <div className="col-span-4">
                         <label className="block text-[10px] text-on-surface-variant uppercase mb-1">Value</label>
-                        <input
-                          type="number"
-                          value={rule.value}
-                          onChange={e => updateRule(critTab, idx, { value: Number(e.target.value) })}
-                          className="w-full bg-background border border-outline-variant rounded px-3 py-2 text-sm text-on-surface font-mono focus:ring-1 focus:ring-primary outline-none"
-                        />
+                        {NUMERIC_RULE_KEYS.has(rule.column) ? (
+                          <input
+                            type="number"
+                            value={rule.value as number}
+                            onChange={e => updateRule(critTab, idx, { value: Number(e.target.value) })}
+                            className="w-full bg-background border border-outline-variant rounded px-3 py-2 text-sm text-on-surface font-mono focus:ring-1 focus:ring-primary outline-none"
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            value={rule.value as string}
+                            onChange={e => updateRule(critTab, idx, { value: e.target.value })}
+                            placeholder="e.g. YouTube"
+                            className="w-full bg-background border border-outline-variant rounded px-3 py-2 text-sm text-on-surface focus:ring-1 focus:ring-primary outline-none"
+                          />
+                        )}
                       </div>
 
                       {/* Delete */}

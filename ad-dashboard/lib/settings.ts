@@ -29,22 +29,15 @@ export const ALL_COLUMNS: { key: string; label: string; always?: boolean }[] = [
   { key: "video_completion_rate", label: "Video Completion Rate"                },
 ];
 
-// Numeric columns available as rule targets
-export const RULE_COLUMNS = [
-  { key: "roas",                  label: "ROAS"                  },
-  { key: "spend",                 label: "Spend"                 },
-  { key: "revenue",               label: "Revenue"               },
-  { key: "days_running",          label: "Days Running"          },
-  { key: "ctr",                   label: "CTR"                   },
-  { key: "impressions",           label: "Impressions"           },
-  { key: "clicks",                label: "Clicks"                },
-  { key: "conversions",           label: "Conversions"           },
-  { key: "cpc",                   label: "CPC"                   },
-  { key: "cpa",                   label: "CPA"                   },
-  { key: "creative_score",        label: "Creative Score"        },
-  { key: "landing_page_score",    label: "Landing Page Score"    },
-  { key: "frequency",             label: "Frequency"             },
-];
+// All columns available as rule targets (excludes _class which is the computed result)
+export const RULE_COLUMNS = ALL_COLUMNS.filter(c => c.key !== "_class");
+
+// Numeric columns — support all operators; text columns only support "="
+export const NUMERIC_RULE_KEYS = new Set([
+  "days_running", "spend", "revenue", "roas", "impressions", "clicks",
+  "ctr", "conversions", "cpc", "cpa", "creative_score", "landing_page_score",
+  "frequency", "video_completion_rate",
+]);
 
 // ── Rule types ───────────────────────────────────────────────────────────────
 
@@ -55,7 +48,7 @@ export interface Rule {
   id:       string;
   column:   string;
   operator: Operator;
-  value:    number;
+  value:    number | string;
   logic:    Logic; // how this rule joins with the previous rule (ignored for rule[0])
 }
 
@@ -117,14 +110,19 @@ export const DEFAULT_SETTINGS: AppSettings = {
 function evalRule(ad: Ad, rule: Rule): boolean {
   const raw = (ad as unknown as Record<string, unknown>)[rule.column];
   if (raw === undefined || raw === null) return false;
-  const n = Number(raw);
-  switch (rule.operator) {
-    case "<":  return n <  rule.value;
-    case ">":  return n >  rule.value;
-    case "=":  return n === rule.value;
-    case ">=": return n >= rule.value;
-    case "<=": return n <= rule.value;
+  if (NUMERIC_RULE_KEYS.has(rule.column)) {
+    const n = Number(raw);
+    const v = Number(rule.value);
+    switch (rule.operator) {
+      case "<":  return n <  v;
+      case ">":  return n >  v;
+      case "=":  return n === v;
+      case ">=": return n >= v;
+      case "<=": return n <= v;
+    }
   }
+  // Text columns: only "=" is meaningful — case-insensitive match
+  return String(raw).toLowerCase() === String(rule.value).toLowerCase();
 }
 
 // Evaluate left-to-right (AND/OR, no precedence)
