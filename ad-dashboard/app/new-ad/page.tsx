@@ -19,17 +19,19 @@ const FALLBACK_PLATFORMS = ["YouTube", "Meta", "Google", "Instagram", "TikTok", 
 const FALLBACK_AD_TYPES  = ["Video Reel", "Static Carousel", "Image Post", "Story", "Search Ad", "Display Ad"];
 const STATUSES           = ["Active", "Paused", "Completed"];
 
-// Columns that map 1-to-1 to DB fields (recommendation is computed, so excluded)
+// Columns that map to DB fields (recommendation is computed — excluded)
 const DB_COLUMNS = new Set([
   "ad_id","platform","brand","category","ad_type","target_audience","creative_theme",
   "status","start_date","days_running","spend","revenue","roas","impressions","clicks",
   "ctr","conversions","cpc","cpa","creative_score","landing_page_score","frequency",
-  "video_completion_rate",
+  "video_completion_rate","product","landing_page",
 ]);
 const NUMERIC_COLS = new Set([
   "days_running","spend","revenue","roas","impressions","clicks","ctr","conversions",
   "cpc","cpa","creative_score","landing_page_score","frequency","video_completion_rate",
 ]);
+// These can be null when empty; all other numerics default to 0
+const NULLABLE_COLS = new Set(["video_completion_rate"]);
 
 const BLANK: FormData = {
   ad_id: "", platform: "", brand: "", category: "", ad_type: "",
@@ -185,7 +187,8 @@ export default function NewAdPage() {
     setCsvStatus(null);
     try {
       const text  = await csvFile.text();
-      const lines = text.split("\n").filter(l => l.trim());
+      // Handle both \r\n (Windows) and \n (Unix) line endings
+      const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").filter(l => l.trim());
       if (lines.length < 2) throw new Error("File has no data rows.");
 
       // Normalise headers: lowercase + underscores
@@ -206,26 +209,33 @@ export default function NewAdPage() {
         const record: Record<string, unknown> = {};
 
         dbHeaders.forEach((col, idx) => {
-          if (!col) return; // skip non-DB columns
+          if (!col) return; // skip non-DB columns (recommendation etc.)
           const raw = cols[idx] ?? "";
-          record[col] = NUMERIC_COLS.has(col)
-            ? (raw === "" ? null : Number(raw))
-            : raw;
+          if (NUMERIC_COLS.has(col)) {
+            // nullable cols (video_completion_rate) → null when empty, else 0
+            record[col] = raw === ""
+              ? (NULLABLE_COLS.has(col) ? null : 0)
+              : Number(raw);
+          } else {
+            record[col] = raw;
+          }
         });
 
-        const adId = String(record.ad_id ?? "").trim();
-        const brand = String(record.brand ?? "").trim();
+        const adId  = String(record.ad_id  ?? "").trim();
+        const brand = String(record.brand  ?? "").trim();
 
         if (!adId)  { rowErrors.push(`Row ${i + 1}: missing ad_id — skipped`);  continue; }
         if (!brand) { rowErrors.push(`Row ${i + 1}: missing brand — skipped`);   continue; }
 
         record.ad_id = adId;
         record.brand = brand;
+        // Ensure spend is always present (default 0)
+        if (record.spend == null) record.spend = 0;
         ads.push(record);
       }
 
       if (ads.length === 0) {
-        throw new Error(`No valid rows found. Errors: ${rowErrors.slice(0, 5).join("; ")}`);
+        throw new Error(`No valid rows found.${rowErrors.length ? " Errors: " + rowErrors.slice(0, 3).join("; ") : ""}`);
       }
 
       // Upsert all valid rows via /api/ads
@@ -237,16 +247,18 @@ export default function NewAdPage() {
           body: JSON.stringify(ad),
         });
         const d = await r.json();
-        if (!r.ok) { rowErrors.push(`${ad.ad_id}: ${d.error ?? "unknown error"}`); continue; }
+        if (!r.ok) { rowErrors.push(`${ad.ad_id}: ${d.error ?? "server error"}`); continue; }
         added   += d.added   ?? 0;
         updated += d.updated ?? 0;
       }
 
-      const msg    = [added ? `${added} added` : "", updated ? `${updated} updated` : ""].filter(Boolean).join(", ");
+      const msg    = [added ? `${added} added` : "", updated ? `${updated} updated` : ""].filter(Boolean).join(", ") || "0 changes";
       const errTxt = rowErrors.length ? ` · ${rowErrors.length} row(s) skipped` : "";
-      setCsvStatus({ ok: true, text: `Import complete — ${msg}.${errTxt}` });
-      if (rowErrors.length) console.warn("CSV row errors:", rowErrors);
+      setCsvStatus({ ok: true, text: `Import complete — ${msg}.${errTxt} Redirecting to dashboard…` });
       setCsvFile(null);
+      if (rowErrors.length) console.warn("CSV row errors:", rowErrors);
+      // Refresh dashboard with new data
+      setTimeout(() => { router.refresh(); router.push("/"); }, 1500);
     } catch (err) {
       setCsvStatus({ ok: false, text: String(err) });
     } finally {

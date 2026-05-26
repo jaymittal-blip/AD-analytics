@@ -20,9 +20,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json() as Partial<Ad> & { product?: string; landing_page?: string };
 
     if (!body.ad_id?.trim()) return NextResponse.json({ error: "ad_id is required"   }, { status: 400 });
-    if (!body.platform)      return NextResponse.json({ error: "platform is required" }, { status: 400 });
     if (!body.brand)         return NextResponse.json({ error: "brand is required"    }, { status: 400 });
-    if (body.spend == null)  return NextResponse.json({ error: "spend is required"    }, { status: 400 });
 
     const now        = new Date();
     const startDate  = body.start_date ? new Date(body.start_date) : now;
@@ -31,8 +29,8 @@ export async function POST(req: NextRequest) {
 
     const ad: Ad = {
       ad_id:               body.ad_id.trim(),
-      platform:            body.platform,
-      brand:               body.brand,
+      platform:            body.platform   ?? "Unknown",
+      brand:               body.brand!,
       category:            body.category           ?? "Unknown",
       ad_type:             body.ad_type            ?? "Unknown",
       target_audience:     body.target_audience    ?? "Unknown",
