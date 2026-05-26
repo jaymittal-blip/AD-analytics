@@ -42,5 +42,17 @@ async function fetchFromExternalApi(): Promise<Ad[]> {
 }
 
 export async function fetchAllAds(): Promise<Ad[]> {
-  return BACKEND_URL ? fetchFromBackend() : fetchFromExternalApi();
+  const external = await (BACKEND_URL ? fetchFromBackend() : fetchFromExternalApi());
+
+  // Merge custom-added ads — custom overrides external by ad_id
+  let custom: Ad[] = [];
+  try {
+    const { readCustomAds } = await import("./customStore");
+    custom = readCustomAds();
+  } catch { /* file may not exist in some environments */ }
+
+  if (!custom.length) return external;
+  const map = new Map(external.map(a => [a.ad_id, a]));
+  custom.forEach(a => map.set(a.ad_id, a));
+  return [...map.values()];
 }
