@@ -2,17 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
-html,
-body {
-  background-color: #0d0d14;
-  color: #dde1f0;
+html, body {
+  background-color: #131313;
+  color: #e5e2e1;
+  font-family: 'Inter', sans-serif;
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #16161f; }
-::-webkit-scrollbar-thumb { background: #252535; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #363650; }
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  font-style: normal;
+  line-height: 1;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
 
-/* Table numeric column alignment utility */
-.num { text-align: right; font-variant-numeric: tabular-nums; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #1A1A1A; }
+::-webkit-scrollbar-thumb { background: #353534; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #5b403e; }
+
+@media print {
+  aside, .no-print { display: none !important; }
+  body, main, .scrollbar-hide {
+    overflow: visible !important;
+    height: auto !important;
+    background: white !important;
+    color: black !important;
+  }
+  .tonal-card {
+    border: 1px solid #ccc !important;
+    background: white !important;
+    break-inside: avoid;
+  }
+}

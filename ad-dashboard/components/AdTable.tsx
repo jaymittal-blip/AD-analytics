@@ -3,182 +3,202 @@
 import { useState, useMemo } from "react";
 import { Ad } from "@/lib/types";
 import { fmtINR, fmtRoas, fmtPct } from "@/lib/format";
+import { THRESHOLDS } from "@/lib/analyzer";
 import Badge from "./Badge";
 
 type SortKey = "spend" | "roas" | "days_running" | "revenue" | "ctr";
 type SortDir = "asc" | "desc";
 
-interface AdTableProps {
+const PAGE_SIZE = 15;
+
+const ALL_COLUMNS = [
+  { key: "ad_id",           label: "AD ID",         align: "left",  sortKey: null          },
+  { key: "_class",          label: "Action",        align: "left",  sortKey: null          },
+  { key: "platform",        label: "Platform",      align: "left",  sortKey: null          },
+  { key: "brand",           label: "Brand",         align: "left",  sortKey: null          },
+  { key: "creative_theme",  label: "Creative Theme",align: "left",  sortKey: null          },
+  { key: "target_audience", label: "Audience",      align: "left",  sortKey: null          },
+  { key: "status",          label: "Status",        align: "left",  sortKey: null          },
+  { key: "days_running",    label: "Days",          align: "right", sortKey: "days_running" },
+  { key: "spend",           label: "Spend",         align: "right", sortKey: "spend"        },
+  { key: "roas",            label: "ROAS",          align: "right", sortKey: "roas"         },
+  { key: "ctr",             label: "CTR",           align: "right", sortKey: "ctr"          },
+  { key: "revenue",         label: "Revenue",       align: "right", sortKey: "revenue"      },
+] as const;
+
+type ColKey = (typeof ALL_COLUMNS)[number]["key"];
+
+const ALWAYS_ON = new Set<ColKey>(["ad_id", "_class"]);
+const DEFAULT_VISIBLE = new Set<ColKey>([
+  "ad_id", "_class", "platform", "brand", "creative_theme",
+  "target_audience", "days_running", "spend", "roas", "ctr", "revenue",
+]);
+
+interface Props {
   ads: Ad[];
-  searchable?: boolean;
   emptyMessage?: string;
 }
 
-function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
-  if (!active)
-    return <span className="text-dash-border ml-1 select-none">↕</span>;
-  return (
-    <span className="text-dash-watch ml-1 select-none">
-      {dir === "desc" ? "↓" : "↑"}
-    </span>
-  );
-}
-
-export default function AdTable({
-  ads,
-  searchable = false,
-  emptyMessage = "No ads in this category.",
-}: AdTableProps) {
-  const [sortKey, setSortKey] = useState<SortKey>("spend");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [query, setQuery] = useState("");
+export default function AdTable({ ads, emptyMessage = "No ads in this category." }: Props) {
+  const [sortKey,  setSortKey]  = useState<SortKey>("spend");
+  const [sortDir,  setSortDir]  = useState<SortDir>("desc");
+  const [page,     setPage]     = useState(1);
+  const [colsOpen, setColsOpen] = useState(false);
+  const [visible,  setVisible]  = useState<Set<ColKey>>(new Set(DEFAULT_VISIBLE));
 
   function toggleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "desc" ? "asc" : "desc"));
-    } else {
-      setSortKey(key);
-      setSortDir("desc");
+    if (sortKey === key) setSortDir(d => d === "desc" ? "asc" : "desc");
+    else { setSortKey(key); setSortDir("desc"); }
+    setPage(1);
+  }
+
+  function toggleCol(key: ColKey) {
+    if (ALWAYS_ON.has(key)) return;
+    setVisible(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  const sorted = useMemo(() => {
+    return [...ads].sort((a, b) => {
+      const av = (a[sortKey as keyof Ad] as number) ?? 0;
+      const bv = (b[sortKey as keyof Ad] as number) ?? 0;
+      return sortDir === "desc" ? bv - av : av - bv;
+    });
+  }, [ads, sortKey, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const pageAds    = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const showCols   = ALL_COLUMNS.filter(c => visible.has(c.key));
+
+  function roasColor(roas: number) {
+    if (roas < THRESHOLDS.ROAS_KILL)   return "text-primary-container";
+    if (roas >= THRESHOLDS.ROAS_SCALE) return "text-secondary";
+    return "text-on-surface";
+  }
+
+  function renderCell(ad: Ad, key: ColKey) {
+    switch (key) {
+      case "ad_id":           return <span className="font-mono text-[12px] text-on-surface-variant whitespace-nowrap">{ad.ad_id}</span>;
+      case "_class":          return <Badge cls={ad._class} />;
+      case "platform":        return <span className="text-sm">{ad.platform}</span>;
+      case "brand":           return <span className="text-sm">{ad.brand}</span>;
+      case "creative_theme":  return <span className="text-sm italic text-on-surface-variant truncate max-w-[150px] block" title={ad.creative_theme}>{ad.creative_theme}</span>;
+      case "target_audience": return <span className="text-sm text-on-surface-variant whitespace-nowrap">{ad.target_audience}</span>;
+      case "status":          return <span className="text-xs text-on-surface-variant whitespace-nowrap">{ad.status}</span>;
+      case "days_running":    return <span className="font-mono text-sm">{ad.days_running}</span>;
+      case "spend":           return <span className="font-mono text-sm font-bold">{fmtINR(ad.spend)}</span>;
+      case "roas":            return <span className={`font-mono text-sm font-bold ${roasColor(ad.roas)}`}>{fmtRoas(ad.roas)}</span>;
+      case "ctr":             return <span className="font-mono text-sm text-on-surface-variant">{fmtPct(ad.ctr)}</span>;
+      case "revenue":         return <span className="font-mono text-sm text-on-surface-variant">{fmtINR(ad.revenue)}</span>;
     }
   }
 
-  const filtered = useMemo(() => {
-    if (!query.trim()) return ads;
-    const q = query.toLowerCase();
-    return ads.filter(
-      (a) =>
-        a.ad_id.toLowerCase().includes(q) ||
-        a.platform.toLowerCase().includes(q) ||
-        a.brand.toLowerCase().includes(q) ||
-        a.creative_theme.toLowerCase().includes(q) ||
-        a.target_audience.toLowerCase().includes(q) ||
-        a.status.toLowerCase().includes(q)
-    );
-  }, [ads, query]);
-
-  const sorted = useMemo(() => {
-    return [...filtered].sort((a, b) => {
-      const av = a[sortKey] ?? 0;
-      const bv = b[sortKey] ?? 0;
-      return sortDir === "desc" ? (bv as number) - (av as number) : (av as number) - (bv as number);
-    });
-  }, [filtered, sortKey, sortDir]);
-
-  function Th({
-    label,
-    sk,
-    align = "left",
-  }: {
-    label: string;
-    sk?: SortKey;
-    align?: "left" | "right";
-  }) {
-    const alignCls = align === "right" ? "text-right" : "text-left";
-    const clickable = sk
-      ? "cursor-pointer hover:text-dash-text select-none"
-      : "";
-    return (
-      <th
-        className={`px-3 py-2.5 text-[10px] uppercase tracking-wider text-dash-muted font-medium ${alignCls} ${clickable} whitespace-nowrap`}
-        onClick={sk ? () => toggleSort(sk) : undefined}
-      >
-        {label}
-        {sk && <SortIcon active={sortKey === sk} dir={sortDir} />}
-      </th>
-    );
-  }
-
   return (
-    <div className="space-y-3">
-      {searchable && (
-        <div className="flex justify-end">
-          <input
-            type="text"
-            placeholder="Filter by ID, platform, brand, theme…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="bg-dash-surface border border-dash-border rounded-lg px-3 py-1.5 text-sm text-dash-text placeholder:text-dash-muted focus:outline-none focus:border-dash-watch w-72"
-          />
-        </div>
-      )}
-
-      <div className="overflow-x-auto rounded-xl border border-dash-border">
-        <table className="w-full text-sm border-collapse">
-          <thead className="bg-[#0a0a12]">
-            <tr>
-              <Th label="Ad ID" />
-              <Th label="Action" />
-              <Th label="Platform" />
-              <Th label="Brand" />
-              <Th label="Creative Theme" />
-              <Th label="Audience" />
-              <Th label="Status" />
-              <Th label="Days" sk="days_running" align="right" />
-              <Th label="Spend"   sk="spend"   align="right" />
-              <Th label="ROAS"    sk="roas"    align="right" />
-              <Th label="CTR"     sk="ctr"     align="right" />
-              <Th label="Revenue" sk="revenue" align="right" />
+    <div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-surface-container-low text-on-surface-variant text-[11px] uppercase tracking-wider">
+              {showCols.map(col => (
+                <th
+                  key={col.key}
+                  className={`px-5 py-3.5 font-semibold whitespace-nowrap ${col.align === "right" ? "text-right" : ""} ${col.sortKey ? "cursor-pointer hover:text-on-surface select-none" : ""}`}
+                  onClick={col.sortKey ? () => toggleSort(col.sortKey as SortKey) : undefined}
+                >
+                  {col.label}
+                  {col.sortKey && (
+                    sortKey === col.sortKey
+                      ? <span className="material-symbols-outlined text-[12px] align-middle ml-0.5 text-primary">{sortDir === "desc" ? "arrow_downward" : "arrow_upward"}</span>
+                      : <span className="material-symbols-outlined text-[12px] align-middle ml-0.5 text-on-surface-variant/50">unfold_more</span>
+                  )}
+                </th>
+              ))}
             </tr>
           </thead>
-          <tbody>
-            {sorted.length === 0 ? (
+          <tbody className="divide-y divide-surface-variant">
+            {pageAds.length === 0 ? (
               <tr>
-                <td
-                  colSpan={12}
-                  className="text-center text-dash-muted py-10 text-sm"
-                >
-                  {query ? "No ads match your filter." : emptyMessage}
+                <td colSpan={showCols.length} className="text-center text-on-surface-variant py-14 text-sm">
+                  {emptyMessage}
                 </td>
               </tr>
-            ) : (
-              sorted.map((ad) => (
-                <tr
-                  key={ad.ad_id}
-                  className="border-t border-dash-border hover:bg-dash-raised transition-colors"
-                >
-                  <td className="px-3 py-2.5 font-mono text-xs text-dash-muted whitespace-nowrap">
-                    {ad.ad_id}
+            ) : pageAds.map(ad => (
+              <tr key={ad.ad_id} className="hover:bg-surface-container transition-colors">
+                {showCols.map(col => (
+                  <td
+                    key={col.key}
+                    className={`px-5 py-3 ${col.align === "right" ? "text-right" : ""}`}
+                  >
+                    {renderCell(ad, col.key)}
                   </td>
-                  <td className="px-3 py-2.5 whitespace-nowrap">
-                    <Badge cls={ad._class} />
-                  </td>
-                  <td className="px-3 py-2.5 whitespace-nowrap">{ad.platform}</td>
-                  <td className="px-3 py-2.5 whitespace-nowrap">{ad.brand}</td>
-                  <td className="px-3 py-2.5 max-w-[180px] truncate" title={ad.creative_theme}>
-                    {ad.creative_theme}
-                  </td>
-                  <td className="px-3 py-2.5 whitespace-nowrap text-dash-muted text-xs">
-                    {ad.target_audience}
-                  </td>
-                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-dash-muted">
-                    {ad.status}
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{ad.days_running}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums font-medium">
-                    {fmtINR(ad.spend)}
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-dash-text">
-                    {fmtRoas(ad.roas)}
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-dash-muted">
-                    {fmtPct(ad.ctr)}
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-dash-muted">
-                    {fmtINR(ad.revenue)}
-                  </td>
-                </tr>
-              ))
-            )}
+                ))}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
 
-      {sorted.length > 0 && (
-        <p className="text-xs text-dash-muted text-right">
-          {sorted.length} ad{sorted.length !== 1 ? "s" : ""}
-          {query && ` matching "${query}"`}
-        </p>
-      )}
+      {/* Footer */}
+      <div className="px-5 py-3 border-t border-surface-variant bg-surface-container-low flex items-center justify-between flex-wrap gap-2">
+        <span className="text-[11px] text-on-surface-variant">
+          {sorted.length === 0
+            ? "0 ads"
+            : `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, sorted.length)} of ${sorted.length} ads`}
+        </span>
+
+        <div className="flex items-center gap-2 no-print">
+          {/* Column toggle */}
+          <div className="relative">
+            <button
+              onClick={() => setColsOpen(!colsOpen)}
+              className="flex items-center gap-1 text-[11px] text-on-surface-variant border border-outline-variant px-2.5 py-1.5 rounded-lg hover:bg-surface-container-high transition-colors"
+            >
+              <span className="material-symbols-outlined text-[16px]">view_column</span>
+              Columns
+            </button>
+            {colsOpen && (
+              <div className="absolute bottom-full right-0 mb-1 z-50 bg-surface-container-high border border-outline-variant rounded-xl shadow-xl p-3 min-w-[180px]">
+                <p className="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2 px-1">Toggle Columns</p>
+                {ALL_COLUMNS.map(col => (
+                  <label
+                    key={col.key}
+                    className={`flex items-center gap-2 px-1 py-1 rounded ${ALWAYS_ON.has(col.key) ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:bg-surface-container-highest"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={visible.has(col.key)}
+                      onChange={() => toggleCol(col.key)}
+                      className="accent-primary-container"
+                      disabled={ALWAYS_ON.has(col.key)}
+                    />
+                    <span className="text-sm text-on-surface">{col.label}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Pagination */}
+          <button
+            disabled={page === 1}
+            onClick={() => setPage(p => p - 1)}
+            className="p-1 border border-outline-variant rounded hover:bg-surface-container disabled:opacity-30 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+          </button>
+          <span className="text-[11px] text-on-surface-variant px-1">{page} / {totalPages}</span>
+          <button
+            disabled={page >= totalPages}
+            onClick={() => setPage(p => p + 1)}
+            className="p-1 border border-outline-variant rounded hover:bg-surface-container disabled:opacity-30 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
