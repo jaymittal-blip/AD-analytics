@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
         ads.push(toAd(record));
       }
 
-      const result = upsertCustomAds(ads);
+      const result = await upsertCustomAds(ads, "sheets");
       writeSheetConfig({ sheetId, sheetName: sheetUrl, lastSync: new Date().toISOString() });
 
       return NextResponse.json({ success: true, ...result, errors: rowErrors, total: ads.length });
@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
       ads.push(toAd(record));
     }
 
-    const result = upsertCustomAds(ads);
+    const result = await upsertCustomAds(ads, "sheets");
     writeSheetConfig({ sheetId, sheetName: sheetUrl, lastSync: new Date().toISOString() });
     return NextResponse.json({ success: true, ...result, errors: rowErrors, total: ads.length });
 

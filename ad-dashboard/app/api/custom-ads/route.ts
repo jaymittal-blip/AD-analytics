@@ -12,7 +12,7 @@ function blankMetrics(): Partial<Ad> {
 }
 
 export async function GET() {
-  return NextResponse.json({ ads: readCustomAds() });
+  return NextResponse.json({ ads: await readCustomAds() });
 }
 
 export async function POST(req: NextRequest) {
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       _class:           "TESTING" as const,
     } as Ad;
 
-    const { added, updated } = upsertCustomAds([ad]);
+    const { added, updated } = await upsertCustomAds([ad], "manual");
     return NextResponse.json({ success: true, ad, added, updated });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
@@ -67,6 +67,6 @@ export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const ad_id = searchParams.get("ad_id");
   if (!ad_id) return NextResponse.json({ error: "ad_id required" }, { status: 400 });
-  deleteCustomAd(ad_id);
+  await deleteCustomAd(ad_id);
   return NextResponse.json({ success: true });
 }

@@ -1,18 +1,40 @@
 import { Ad, ApiResponse, AdsApiResponse } from "./types";
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Data source configuration
-//
-// Default (no env var): paginates through the external API directly.
-//
-// To integrate a Node.js backend, set ADS_API_URL to your backend endpoint:
-//   ADS_API_URL=http://localhost:4000/api/ads
-//
-// The backend should return: { ads: Ad[], fetchedAt: string }
-// ──────────────────────────────────────────────────────────────────────────────
 const EXTERNAL_API = "https://mosaicfellowship.in/api/data/content/ads";
 const BACKEND_URL  = process.env.ADS_API_URL;
+const DATABASE_URL = process.env.DATABASE_URL;
 const PAGE_SIZE    = 100;
+
+async function fetchFromNeon(): Promise<Ad[]> {
+  const { sql } = await import("./db");
+  const rows = await sql`SELECT * FROM ads ORDER BY created_at DESC`;
+  return rows.map(r => ({
+    ad_id:                String(r.ad_id),
+    platform:             String(r.platform),
+    brand:                String(r.brand),
+    category:             String(r.category),
+    ad_type:              String(r.ad_type),
+    target_audience:      String(r.target_audience),
+    creative_theme:       String(r.creative_theme),
+    status:               String(r.status),
+    start_date:           String(r.start_date),
+    days_running:         Number(r.days_running),
+    spend:                Number(r.spend),
+    impressions:          Number(r.impressions),
+    clicks:               Number(r.clicks),
+    ctr:                  Number(r.ctr),
+    conversions:          Number(r.conversions),
+    revenue:              Number(r.revenue),
+    roas:                 Number(r.roas),
+    cpc:                  Number(r.cpc),
+    cpa:                  Number(r.cpa),
+    creative_score:       Number(r.creative_score),
+    landing_page_score:   Number(r.landing_page_score),
+    frequency:            Number(r.frequency),
+    video_completion_rate: r.video_completion_rate != null ? Number(r.video_completion_rate) : null,
+    _class:               "TESTING" as const,
+  })) as Ad[];
+}
 
 async function fetchFromBackend(): Promise<Ad[]> {
   const res = await fetch(BACKEND_URL!, { next: { revalidate: 300 } });
@@ -42,17 +64,8 @@ async function fetchFromExternalApi(): Promise<Ad[]> {
 }
 
 export async function fetchAllAds(): Promise<Ad[]> {
-  const external = await (BACKEND_URL ? fetchFromBackend() : fetchFromExternalApi());
-
-  // Merge custom-added ads — custom overrides external by ad_id
-  let custom: Ad[] = [];
-  try {
-    const { readCustomAds } = await import("./customStore");
-    custom = readCustomAds();
-  } catch { /* file may not exist in some environments */ }
-
-  if (!custom.length) return external;
-  const map = new Map(external.map(a => [a.ad_id, a]));
-  custom.forEach(a => map.set(a.ad_id, a));
-  return [...map.values()];
+  // Priority: Neon DB > custom backend > external API
+  if (DATABASE_URL) return fetchFromNeon();
+  if (BACKEND_URL)  return fetchFromBackend();
+  return fetchFromExternalApi();
 }
