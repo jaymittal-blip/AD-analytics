@@ -18,7 +18,18 @@ interface AdMeta { platforms: string[]; adTypes: string[]; brands: string[]; cat
 const FALLBACK_PLATFORMS = ["YouTube", "Meta", "Google", "Instagram", "TikTok", "X (Twitter)"];
 const FALLBACK_AD_TYPES  = ["Video Reel", "Static Carousel", "Image Post", "Story", "Search Ad", "Display Ad"];
 const STATUSES           = ["Active", "Paused", "Completed"];
-const REQUIRED_COLS      = ["ad_id","platform","brand","category","ad_type","target_audience","creative_theme","status","start_date","days_running","spend"];
+
+// Columns that map 1-to-1 to DB fields (recommendation is computed, so excluded)
+const DB_COLUMNS = new Set([
+  "ad_id","platform","brand","category","ad_type","target_audience","creative_theme",
+  "status","start_date","days_running","spend","revenue","roas","impressions","clicks",
+  "ctr","conversions","cpc","cpa","creative_score","landing_page_score","frequency",
+  "video_completion_rate",
+]);
+const NUMERIC_COLS = new Set([
+  "days_running","spend","revenue","roas","impressions","clicks","ctr","conversions",
+  "cpc","cpa","creative_score","landing_page_score","frequency","video_completion_rate",
+]);
 
 const BLANK: FormData = {
   ad_id: "", platform: "", brand: "", category: "", ad_type: "",
@@ -173,51 +184,68 @@ export default function NewAdPage() {
     setUploading(true);
     setCsvStatus(null);
     try {
-      const text    = await csvFile.text();
-      const lines   = text.split("\n").filter(l => l.trim());
+      const text  = await csvFile.text();
+      const lines = text.split("\n").filter(l => l.trim());
       if (lines.length < 2) throw new Error("File has no data rows.");
 
-      const headers = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/\s+/g, "_").replace(/\s/g, ""));
-      const missing = REQUIRED_COLS.filter(c => !headers.includes(c));
-      if (missing.length) throw new Error(`Missing required columns: ${missing.join(", ")}. Download the sample template.`);
+      // Normalise headers: lowercase + underscores
+      const rawHeaders = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/\s+/g, "_"));
 
-      const rows: Record<string, string>[] = [];
+      // Mandatory columns check
+      if (!rawHeaders.includes("ad_id")) throw new Error("Column 'ad_id' is required but missing from your CSV.");
+      if (!rawHeaders.includes("brand")) throw new Error("Column 'brand' is required but missing from your CSV.");
+
+      // Only keep headers that map to DB columns (skip 'recommendation' and unknowns)
+      const dbHeaders = rawHeaders.map(h => DB_COLUMNS.has(h) ? h : null);
+
+      const ads: Record<string, unknown>[] = [];
       const rowErrors: string[] = [];
+
       for (let i = 1; i < lines.length; i++) {
         const cols   = lines[i].split(",").map(c => c.trim());
-        const record: Record<string, string> = {};
-        headers.forEach((h, idx) => { record[h] = cols[idx] ?? ""; });
-        if (!record.ad_id) { rowErrors.push(`Row ${i + 1}: missing ad_id`); continue; }
-        rows.push(record);
+        const record: Record<string, unknown> = {};
+
+        dbHeaders.forEach((col, idx) => {
+          if (!col) return; // skip non-DB columns
+          const raw = cols[idx] ?? "";
+          record[col] = NUMERIC_COLS.has(col)
+            ? (raw === "" ? null : Number(raw))
+            : raw;
+        });
+
+        const adId = String(record.ad_id ?? "").trim();
+        const brand = String(record.brand ?? "").trim();
+
+        if (!adId)  { rowErrors.push(`Row ${i + 1}: missing ad_id — skipped`);  continue; }
+        if (!brand) { rowErrors.push(`Row ${i + 1}: missing brand — skipped`);   continue; }
+
+        record.ad_id = adId;
+        record.brand = brand;
+        ads.push(record);
       }
 
-      // Send to sync API (reuse same import logic)
-      const resp = await fetch("/api/sheets/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sheetUrl: "_csv_upload_", _csvRows: rows }),
-      });
-      // Actually — POST directly to custom-ads endpoint in bulk
-      // We'll do the import client-side since CSV is already parsed
-      const ads = rows.map(r => ({
-        ad_id: r.ad_id?.trim(), platform: r.platform, brand: r.brand,
-        category: r.category, ad_type: r.ad_type, target_audience: r.target_audience,
-        creative_theme: r.creative_theme, status: r.status, start_date: r.start_date,
-        days_running: Number(r.days_running) || 0, spend: Number(r.spend) || 0,
-        product: r.product, landing_page: r.landing_page,
-      }));
+      if (ads.length === 0) {
+        throw new Error(`No valid rows found. Errors: ${rowErrors.slice(0, 5).join("; ")}`);
+      }
 
+      // Upsert all valid rows via /api/ads
       let added = 0, updated = 0;
       for (const ad of ads) {
-        const r = await fetch("/api/custom-ads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ad) });
+        const r = await fetch("/api/ads", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(ad),
+        });
         const d = await r.json();
-        if (d.added) added += d.added;
-        if (d.updated) updated += d.updated;
+        if (!r.ok) { rowErrors.push(`${ad.ad_id}: ${d.error ?? "unknown error"}`); continue; }
+        added   += d.added   ?? 0;
+        updated += d.updated ?? 0;
       }
 
-      const msg = [`${added} ads added`, updated ? `${updated} updated` : ""].filter(Boolean).join(", ");
-      const errTxt = rowErrors.length ? ` (${rowErrors.length} rows skipped: ${rowErrors.slice(0, 3).join("; ")})` : "";
+      const msg    = [added ? `${added} added` : "", updated ? `${updated} updated` : ""].filter(Boolean).join(", ");
+      const errTxt = rowErrors.length ? ` · ${rowErrors.length} row(s) skipped` : "";
       setCsvStatus({ ok: true, text: `Import complete — ${msg}.${errTxt}` });
+      if (rowErrors.length) console.warn("CSV row errors:", rowErrors);
       setCsvFile(null);
     } catch (err) {
       setCsvStatus({ ok: false, text: String(err) });
@@ -633,7 +661,7 @@ export default function NewAdPage() {
                   {[
                     "Spend values must be in ₹ (INR).",
                     "Ad IDs must be unique — duplicates overwrite existing records.",
-                    `Required columns: ${REQUIRED_COLS.join(", ")}.`,
+                    "Only ad_id and brand are mandatory. All other matching columns are imported automatically.",
                     "Performance metrics (ROAS, CTR, etc.) default to 0 and will be classified as TESTING until updated.",
                     "Ads appear in the Analytics dashboard after import.",
                   ].map(tip => (
