@@ -17,7 +17,7 @@ interface SettingsCtx {
 
 const Ctx = createContext<SettingsCtx | null>(null);
 
-const STORAGE_KEY = "ad-intel-settings-v1";
+const STORAGE_KEY = "ad-intel-settings-v2";
 
 export function useSettings() {
   const ctx = useContext(Ctx);

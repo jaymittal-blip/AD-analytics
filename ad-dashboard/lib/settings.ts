@@ -76,7 +76,7 @@ export const DEFAULT_VISIBLE_COLUMNS: string[] = [
 export const DEFAULT_CRITERIA: CriteriaMap = {
   kill: [
     { id: "k1", column: "roas",         operator: "<",  value: 2.5,   logic: "AND" },
-    { id: "k2", column: "days_running", operator: ">=", value: 14,    logic: "OR"  },
+    { id: "k2", column: "days_running", operator: ">=", value: 14,    logic: "AND" },
     { id: "k3", column: "spend",        operator: ">=", value: 30000, logic: "AND" },
   ],
   scale: [
