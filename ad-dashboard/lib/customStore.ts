@@ -28,7 +28,7 @@ export async function readCustomAds(): Promise<Ad[]> {
 
 export async function upsertCustomAds(
   incoming: Ad[],
-  source: "manual" | "csv" | "sheets" = "manual"
+  source: "manual" | "csv" | "sheets" | "api" = "manual"
 ): Promise<{ added: number; updated: number }> {
   if (USE_DB) {
     const { sql } = await import("./db");

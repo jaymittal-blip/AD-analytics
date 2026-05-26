@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface FormData {
@@ -11,17 +12,20 @@ interface FormData {
 }
 type StatusMsg = { ok: boolean; text: string } | null;
 interface SheetsStatus { oauthReady: boolean; connected: boolean; sheetConfig: { sheetId: string; lastSync: string | null } | null }
+interface AdMeta { platforms: string[]; adTypes: string[]; brands: string[]; categories: string[]; themes: string[]; audiences: string[] }
+
+// Static fallbacks used before /api/ads/meta loads
+const FALLBACK_PLATFORMS = ["YouTube", "Meta", "Google", "Instagram", "TikTok", "X (Twitter)"];
+const FALLBACK_AD_TYPES  = ["Video Reel", "Static Carousel", "Image Post", "Story", "Search Ad", "Display Ad"];
+const STATUSES           = ["Active", "Paused", "Completed"];
+const REQUIRED_COLS      = ["ad_id","platform","brand","category","ad_type","target_audience","creative_theme","status","start_date","days_running","spend"];
 
 const BLANK: FormData = {
-  ad_id: "", platform: "YouTube", brand: "", category: "", ad_type: "Video Reel",
+  ad_id: "", platform: "", brand: "", category: "", ad_type: "",
   target_audience: "", creative_theme: "", status: "Active",
   start_date: new Date().toISOString().split("T")[0], spend: "",
   product: "", landing_page: "",
 };
-const PLATFORMS   = ["YouTube", "Meta", "Google", "Instagram", "TikTok", "X (Twitter)"];
-const AD_TYPES    = ["Video Reel", "Static Carousel", "Image Post", "Story", "Search Ad", "Display Ad"];
-const STATUSES    = ["Active", "Paused", "Completed"];
-const REQUIRED_COLS = ["ad_id","platform","brand","category","ad_type","target_audience","creative_theme","status","start_date","days_running","spend"];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
@@ -52,6 +56,32 @@ function Select({ className = "", ...p }: React.SelectHTMLAttributes<HTMLSelectE
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function NewAdPage() {
+  const router = useRouter();
+
+  // Dynamic meta from DB
+  const [meta, setMeta] = useState<AdMeta>({
+    platforms: FALLBACK_PLATFORMS, adTypes: FALLBACK_AD_TYPES,
+    brands: [], categories: [], themes: [], audiences: [],
+  });
+
+  useEffect(() => {
+    fetch("/api/ads/meta").then(r => r.json()).then((d: AdMeta) => {
+      setMeta({
+        platforms:  d.platforms?.length  ? d.platforms  : FALLBACK_PLATFORMS,
+        adTypes:    d.adTypes?.length    ? d.adTypes    : FALLBACK_AD_TYPES,
+        brands:     d.brands    ?? [],
+        categories: d.categories ?? [],
+        themes:     d.themes    ?? [],
+        audiences:  d.audiences ?? [],
+      });
+      setForm(prev => ({
+        ...prev,
+        platform: prev.platform || (d.platforms?.[0] ?? FALLBACK_PLATFORMS[0]),
+        ad_type:  prev.ad_type  || (d.adTypes?.[0]  ?? FALLBACK_AD_TYPES[0]),
+      }));
+    }).catch(() => {/* keep fallbacks */});
+  }, []);
+
   // Manual entry
   const [form,       setForm]       = useState<FormData>(BLANK);
   const [errors,     setErrors]     = useState<Partial<FormData>>({});
@@ -115,12 +145,13 @@ export default function NewAdPage() {
     setSubmitting(true);
     setFormStatus(null);
     try {
-      const r    = await fetch("/api/custom-ads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, spend: Number(form.spend) }) });
+      const r    = await fetch("/api/ads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, spend: Number(form.spend) }) });
       const data = await r.json();
       if (data.error) throw new Error(data.error);
-      setFormStatus({ ok: true, text: `Ad ${form.ad_id} added successfully. It will appear in the Analytics dashboard.` });
-      setForm(BLANK);
+      setFormStatus({ ok: true, text: `Ad ${form.ad_id} added! Redirecting to dashboard…` });
+      setForm(prev => ({ ...BLANK, platform: prev.platform, ad_type: prev.ad_type }));
       setErrors({});
+      setTimeout(() => { router.refresh(); router.push("/"); }, 1200);
     } catch (err) {
       setFormStatus({ ok: false, text: String(err) });
     } finally {
@@ -263,7 +294,7 @@ export default function NewAdPage() {
                   </Field>
                   <Field label="Platform *">
                     <Select value={form.platform} onChange={f("platform")}>
-                      {PLATFORMS.map(p => <option key={p}>{p}</option>)}
+                      {meta.platforms.map(p => <option key={p}>{p}</option>)}
                     </Select>
                   </Field>
                 </div>
@@ -280,7 +311,7 @@ export default function NewAdPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field label="Ad Type *">
                     <Select value={form.ad_type} onChange={f("ad_type")}>
-                      {AD_TYPES.map(t => <option key={t}>{t}</option>)}
+                      {meta.adTypes.map(t => <option key={t}>{t}</option>)}
                     </Select>
                   </Field>
                   <Field label="Creative Theme *" error={errors.creative_theme}>

@@ -1,10 +1,10 @@
-import { fetchAllAds } from "@/lib/fetchAds";
+import { getAllAds } from "@/lib/adsRepo";
 import Dashboard from "@/components/Dashboard";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic"; // always read fresh from Neon
 
 export default async function HomePage() {
-  const rawAds   = await fetchAllAds();
+  const rawAds    = await getAllAds();
   const fetchedAt = new Date().toISOString();
   return <Dashboard rawAds={rawAds} fetchedAt={fetchedAt} />;
 }

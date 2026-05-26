@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
-import { readTokens, writeTokens, writeSheetConfig, upsertCustomAds } from "@/lib/customStore";
+import { readTokens, writeTokens, writeSheetConfig } from "@/lib/customStore";
+import { upsertManyAds } from "@/lib/adsRepo";
 import { Ad } from "@/lib/types";
 
 const REQUIRED_COLS = ["ad_id", "platform", "brand", "category", "ad_type",
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
         ads.push(toAd(record));
       }
 
-      const result = await upsertCustomAds(ads, "sheets");
+      const result = await upsertManyAds(ads, "sheets");
       writeSheetConfig({ sheetId, sheetName: sheetUrl, lastSync: new Date().toISOString() });
 
       return NextResponse.json({ success: true, ...result, errors: rowErrors, total: ads.length });
@@ -139,7 +140,7 @@ export async function POST(req: NextRequest) {
       ads.push(toAd(record));
     }
 
-    const result = await upsertCustomAds(ads, "sheets");
+    const result = await upsertManyAds(ads, "sheets");
     writeSheetConfig({ sheetId, sheetName: sheetUrl, lastSync: new Date().toISOString() });
     return NextResponse.json({ success: true, ...result, errors: rowErrors, total: ads.length });
 
