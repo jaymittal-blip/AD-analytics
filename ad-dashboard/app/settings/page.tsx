@@ -5,7 +5,9 @@ import { useSettings } from "@/contexts/SettingsProvider";
 import {
   ALL_COLUMNS, RULE_COLUMNS, NUMERIC_RULE_KEYS, DEFAULT_CRITERIA,
   Rule, Operator, Logic, CriteriaMap, EmailSettings,
+  classifyWithCriteria,
 } from "@/lib/settings";
+import { Ad } from "@/lib/types";
 
 type CritTab = "kill" | "scale" | "monitor" | "testing";
 const CRIT_TABS: { id: CritTab; label: string }[] = [
@@ -42,8 +44,10 @@ export default function SettingsPage() {
   );
   const [email, setEmail]   = useState<EmailSettings>({ ...settings.email });
   const [critTab, setCritTab] = useState<CritTab>("kill");
-  const [newEmail, setNewEmail] = useState("");
-  const [saved, setSaved]     = useState(false);
+  const [newEmail,  setNewEmail]  = useState("");
+  const [saved,     setSaved]     = useState(false);
+  const [sending,   setSending]   = useState<string | null>(null); // category being sent
+  const [sendMsg,   setSendMsg]   = useState<{ ok: boolean; text: string } | null>(null);
   const isMount = useRef(true);
 
   // Live preview: push criteria + visible columns to context on every change
@@ -120,6 +124,42 @@ export default function SettingsPage() {
         ? prev.categories.filter(c => c !== cat)
         : [...prev.categories, cat],
     }));
+  }
+
+  // ── Email send ────────────────────────────────────────────────────────────
+  async function sendReport(category: string) {
+    if (!email.recipients.length) {
+      setSendMsg({ ok: false, text: "Add at least one recipient first." });
+      return;
+    }
+    setSending(category);
+    setSendMsg(null);
+    try {
+      // Fetch raw ads, classify client-side with current criteria
+      const res  = await fetch("/api/ads");
+      const json = await res.json() as { ads: Ad[] };
+      const classified = json.ads.map(ad => ({
+        ...ad,
+        _class: classifyWithCriteria(ad, criteria),
+      })) as Ad[];
+      const filtered = classified.filter(ad => {
+        if (category === "ended") return ad._class.startsWith("ENDED");
+        return ad._class.toLowerCase() === category;
+      });
+
+      const resp = await fetch("/api/send-report", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ category, recipients: email.recipients, ads: filtered }),
+      });
+      const data = await resp.json();
+      if (data.error) throw new Error(typeof data.error === "object" ? data.error.message ?? JSON.stringify(data.error) : data.error);
+      setSendMsg({ ok: true, text: `Sent to ${email.recipients.join(", ")}` });
+    } catch (err) {
+      setSendMsg({ ok: false, text: String(err) });
+    } finally {
+      setSending(null);
+    }
   }
 
   // ── Save / Discard ─────────────────────────────────────────────────────────
@@ -433,12 +473,36 @@ export default function SettingsPage() {
                   <p className="text-xs text-on-surface-variant py-2">No recipients added yet.</p>
                 )}
 
-                {/* DB notice */}
-                <div className="bg-tertiary/10 border border-tertiary/30 px-4 py-3 rounded-lg flex gap-2 items-start">
-                  <span className="material-symbols-outlined text-tertiary text-[18px] mt-0.5">info</span>
-                  <p className="text-xs text-on-surface-variant">
-                    Email delivery requires database integration. Recipients and schedule are saved locally — actual sending will activate once the database is connected.
-                  </p>
+                {/* Send Now */}
+                <div className="border-t border-outline-variant pt-5 space-y-3">
+                  <p className="text-[10px] uppercase tracking-widest text-on-surface-variant">Send Report Now</p>
+                  <div className="flex flex-wrap gap-2">
+                    {["kill", "scale", "monitor", "testing"].map(cat => (
+                      <button
+                        key={cat}
+                        onClick={() => sendReport(cat)}
+                        disabled={!!sending}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-surface-container-high border border-outline-variant text-sm rounded-lg hover:bg-surface-container-highest disabled:opacity-50 transition-colors"
+                      >
+                        {sending === cat ? (
+                          <span className="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                        ) : (
+                          <span className="material-symbols-outlined text-[16px]">send</span>
+                        )}
+                        {cat.charAt(0).toUpperCase() + cat.slice(1)} List
+                      </button>
+                    ))}
+                  </div>
+                  {sendMsg && (
+                    <div className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm ${
+                      sendMsg.ok
+                        ? "bg-secondary/10 border-secondary/30 text-secondary"
+                        : "bg-error-container/10 border-error-container/30 text-error"
+                    }`}>
+                      <span className="material-symbols-outlined text-[16px]">{sendMsg.ok ? "check_circle" : "error"}</span>
+                      {sendMsg.text}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
