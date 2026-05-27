@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { TabId, Ad } from "@/lib/types";
 import { breakdownByField, groupAds } from "@/lib/analyzer";
 import { classifyWithCriteria, CriteriaMap, Rule, NUMERIC_RULE_KEYS } from "@/lib/settings";
@@ -117,16 +117,54 @@ function applyFilters(ads: Ad[], filters: Filters): Ad[] {
   });
 }
 
-export default function Dashboard({ rawAds, fetchedAt }: DashboardProps) {
-  const { settings } = useSettings();
-  const [activeTab, setActiveTab] = useState<TabId>("kill");
-  const [filters,   setFilters]   = useState<Filters>(DEFAULT_FILTERS);
+const POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 
-  // Classify ads using custom criteria from Settings
+export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetchedAt }: DashboardProps) {
+  const { settings } = useSettings();
+  const [activeTab,  setActiveTab]  = useState<TabId>("kill");
+  const [filters,    setFilters]    = useState<Filters>(DEFAULT_FILTERS);
+  const [syncBadge,  setSyncBadge]  = useState<string | null>(null);
+  // Local ads state so we can update in-place without a full route refresh
+  const [liveAds,    setLiveAds]    = useState<Ad[]>(initialAds);
+  const [fetchedAt,  setFetchedAt]  = useState(initialFetchedAt);
+
+  const fetchFreshAds = useCallback(async () => {
+    try {
+      const res  = await fetch("/api/ads");
+      const data = await res.json() as { ads: Ad[]; fetchedAt: string };
+      if (Array.isArray(data.ads)) {
+        setLiveAds(data.ads);
+        setFetchedAt(data.fetchedAt);
+      }
+    } catch { /* silent */ }
+  }, []);
+
+  const pollAutoSync = useCallback(async () => {
+    try {
+      const res  = await fetch("/api/sheets/auto-sync");
+      const data = await res.json() as { synced: boolean; added?: number; updated?: number; total?: number };
+      if (data.synced) {
+        await fetchFreshAds();
+        const added   = data.added   ?? 0;
+        const updated = data.updated ?? 0;
+        if (added + updated > 0) {
+          setSyncBadge(`Sheet synced — ${added} added, ${updated} updated`);
+          setTimeout(() => setSyncBadge(null), 6000);
+        }
+      }
+    } catch { /* silent */ }
+  }, [fetchFreshAds]);
+
+  useEffect(() => {
+    // Poll immediately on mount (picks up any changes since page last loaded)
+    pollAutoSync();
+    const id = setInterval(pollAutoSync, POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [pollAutoSync]);
+
   const ads = useMemo(() =>
-    rawAds.map(ad => ({ ...ad, _class: classifyWithCriteria(ad, settings.criteria) })) as Ad[],
-    [rawAds, settings.criteria]
-  );
+    liveAds.map(ad => ({ ...ad, _class: classifyWithCriteria(ad, settings.criteria) })) as Ad[]
+  , [liveAds, settings.criteria]);
 
   // Unique filter options
   const platforms = useMemo(() => [...new Set(ads.map(a => a.platform))].sort(), [ads]);
@@ -183,6 +221,12 @@ export default function Dashboard({ rawAds, fetchedAt }: DashboardProps) {
           <h2 className="text-base font-extrabold text-on-surface leading-tight">Ad Performance Intelligence</h2>
           <p className="text-[10px] text-on-surface-variant">{ads.length} ads · {fetchedDate}</p>
         </div>
+        {syncBadge && (
+          <div className="flex items-center gap-1.5 text-[11px] text-primary bg-primary/10 border border-primary/20 rounded-lg px-3 py-1.5 animate-fade-in">
+            <span className="material-symbols-outlined text-[14px]">sync</span>
+            {syncBadge}
+          </div>
+        )}
         <div className="flex-1 max-w-md ml-auto relative">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
           <input

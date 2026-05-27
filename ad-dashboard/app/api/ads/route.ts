@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       video_completion_rate: body.video_completion_rate != null
         ? Number(body.video_completion_rate)
         : (existing?.video_completion_rate ?? null),
-      _class: "TESTING" as const,
+      _class: "TESTING",
     };
 
     const result = await upsertAd(ad, "manual");

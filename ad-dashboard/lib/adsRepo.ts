@@ -5,7 +5,7 @@
  * Priority: Neon (DATABASE_URL set) → external API fallback (local dev / no DB)
  */
 
-import { Ad } from "./types";
+import { Ad, AdClass } from "./types";
 
 const EXTERNAL_API = "https://mosaicfellowship.in/api/data/content/ads";
 const PAGE_SIZE    = 100;
@@ -191,6 +191,6 @@ export function rowToAd(r: Record<string, unknown>): Ad {
     frequency:            Number(r.frequency),
     video_completion_rate: r.video_completion_rate != null
       ? Number(r.video_completion_rate) : null,
-    _class: "TESTING" as const,
+    _class: "TESTING",
   } as Ad;
 }

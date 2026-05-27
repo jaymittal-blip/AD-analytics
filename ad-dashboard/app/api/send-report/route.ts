@@ -263,7 +263,8 @@ function buildHtml(category: string, ads: Ad[], rules: Rule[]): string {
 
     <!-- Footer -->
     <tr><td style="padding-top:28px;text-align:center">
-      <p style="margin:0;font-size:11px;color:#444">Sent by <strong style="color:#666">Ad Intel</strong> · Ad Performance Intelligence · ${new Date().toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+      <p style="margin:0 0 6px;font-size:11px;color:#444">Sent by <strong style="color:#666">Ad Intel</strong> · Ad Performance Intelligence · ${new Date().toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+      <a href="${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}" style="font-size:12px;color:#666;text-decoration:underline">${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}</a>
     </td></tr>
 
   </table>
@@ -291,8 +292,9 @@ export async function POST(req: NextRequest) {
     const meta    = CATEGORY_META[category] ?? { title: category, color: "#888", action: "" };
     const subject = `Ad Intel: ${meta.title} — ${ads.length} ads · ${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`;
 
+    const fromAddress = process.env.RESEND_FROM_EMAIL ?? "Ad Intel <onboarding@resend.dev>";
     const { data, error } = await resend.emails.send({
-      from:    "Ad Intel <onboarding@resend.dev>",
+      from:    fromAddress,
       to:      recipients,
       subject,
       html:    buildHtml(category, ads, rules),

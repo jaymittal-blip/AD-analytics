@@ -116,7 +116,8 @@ export default function NewAdPage() {
   const [syncMsg,     setSyncMsg]     = useState<StatusMsg>(null);
   const [oauthErr,    setOauthErr]    = useState<string | null>(null);
   const [showSetup,   setShowSetup]   = useState(false);
-  const [sheetsHowTab, setSheetsHowTab] = useState<"public" | "private">("public");
+  const [sheetsHowTab, setSheetsHowTab] = useState<"public" | "private" | "appsscript">("appsscript");
+  const [pushSecret,   setPushSecret]   = useState<string | null>(null);
 
   // Read URL params (after OAuth redirect)
   useEffect(() => {
@@ -133,12 +134,17 @@ export default function NewAdPage() {
   }, []);
 
   const fetchSheetsStatus = useCallback(async () => {
-    const r = await fetch("/api/sheets/status");
-    const d = await r.json() as SheetsStatus;
+    const [statusRes, configRes] = await Promise.all([
+      fetch("/api/sheets/status"),
+      fetch("/api/sheets/config"),
+    ]);
+    const d = await statusRes.json() as SheetsStatus;
     setSheetStatus(d);
-    if (d.sheetConfig?.sheetId) {
+    if (d.sheetConfig?.sheetId && d.sheetConfig.sheetId !== "apps-script") {
       setSheetUrl(`https://docs.google.com/spreadsheets/d/${d.sheetConfig.sheetId}/edit`);
     }
+    const cfg = await configRes.json() as { pushSecret: string | null };
+    setPushSecret(cfg.pushSecret);
   }, []);
 
   // ── Manual entry submit ───────────────────────────────────────────────────
@@ -287,6 +293,8 @@ export default function NewAdPage() {
       const errNote = data.errors?.length ? ` (${data.errors.length} rows skipped)` : "";
       setSyncMsg({ ok: true, text: `Synced ${data.total} rows — ${data.added} added, ${data.updated} updated.${errNote}` });
       await fetchSheetsStatus();
+      router.refresh();
+      setTimeout(() => router.push("/"), 1500);
     } catch (err) {
       setSyncMsg({ ok: false, text: String(err) });
     } finally {
@@ -481,121 +489,21 @@ export default function NewAdPage() {
                 </div>
                 <div className="p-5 space-y-4">
 
-                  {/* How-to tabs: Public / Private */}
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant mb-2">How to sync</p>
-                    <div className="flex rounded-lg overflow-hidden border border-outline-variant text-[12px] font-semibold">
-                      <button
-                        onClick={() => setSheetsHowTab("public")}
-                        className={`flex-1 py-2 flex items-center justify-center gap-1.5 transition-colors ${sheetsHowTab === "public" ? "bg-tertiary/20 text-tertiary" : "text-on-surface-variant hover:bg-surface-container-high"}`}
-                      >
-                        <span className="material-symbols-outlined text-[15px]">public</span>
-                        Public Sheet
-                      </button>
-                      <button
-                        onClick={() => setSheetsHowTab("private")}
-                        className={`flex-1 py-2 flex items-center justify-center gap-1.5 border-l border-outline-variant transition-colors ${sheetsHowTab === "private" ? "bg-tertiary/20 text-tertiary" : "text-on-surface-variant hover:bg-surface-container-high"}`}
-                      >
-                        <span className="material-symbols-outlined text-[15px]">lock</span>
-                        Private Sheet
-                      </button>
+                  {/* One-step instruction */}
+                  <div className="bg-surface-container-highest rounded-lg p-3 space-y-2.5">
+                    <p className="text-[11px] font-bold text-tertiary uppercase tracking-wider">One step before syncing</p>
+                    <div className="flex items-start gap-3 text-[13px] text-on-surface">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-tertiary/20 text-tertiary text-[11px] font-bold flex items-center justify-center mt-0.5">1</span>
+                      <span>Open your Google Sheet → click <strong>Share</strong> (top-right) → set access to <strong>Anyone with the link → Viewer</strong> → click Done</span>
                     </div>
-
-                    {/* Public steps */}
-                    {sheetsHowTab === "public" && (
-                      <div className="mt-3 bg-surface-container-highest rounded-lg p-3 space-y-2">
-                        <p className="text-[11px] text-tertiary font-bold uppercase tracking-wider">No login required</p>
-                        <ol className="space-y-2 text-[12px] text-on-surface-variant list-none">
-                          {[
-                            { n: "1", icon: "share", text: <>Open your Google Sheet → click <strong>Share</strong> (top-right)</> },
-                            { n: "2", icon: "lock_open", text: <>Change access to <strong>Anyone with the link → Viewer</strong> → click Done</> },
-                            { n: "3", icon: "content_copy", text: <>Copy the sheet URL from your browser address bar</> },
-                            { n: "4", icon: "link", text: <>Paste it in the <strong>Sheet URL</strong> field below</> },
-                            { n: "5", icon: "sync", text: <>Click <strong>Sync Now</strong> — data imports instantly</> },
-                          ].map(s => (
-                            <li key={s.n} className="flex items-start gap-2.5">
-                              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-tertiary/20 text-tertiary text-[10px] font-bold flex items-center justify-center mt-0.5">{s.n}</span>
-                              <span className="leading-relaxed">{s.text}</span>
-                            </li>
-                          ))}
-                        </ol>
-                        <div className="pt-2 border-t border-outline-variant/40 flex items-start gap-1.5">
-                          <span className="material-symbols-outlined text-[13px] text-on-surface-variant/60 mt-0.5">info</span>
-                          <p className="text-[11px] text-on-surface-variant/60 leading-relaxed">
-                            Sheet must use the required column format.{" "}
-                            <a href="/api/sheets/template" className="text-tertiary underline">Download template</a> to see exact headers.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Private steps */}
-                    {sheetsHowTab === "private" && (
-                      <div className="mt-3 bg-surface-container-highest rounded-lg p-3 space-y-2">
-                        <p className="text-[11px] text-tertiary font-bold uppercase tracking-wider">One-time OAuth setup + connect</p>
-
-                        {/* Phase A: Admin setup (only if OAuth not ready) */}
-                        {!sheetStatus?.oauthReady && (
-                          <>
-                            <p className="text-[11px] font-semibold text-on-surface mt-1">Part A — Admin: Configure Google OAuth</p>
-                            <ol className="space-y-2 text-[12px] text-on-surface-variant list-none">
-                              {[
-                                { n: "1", text: <>Go to <strong>console.cloud.google.com</strong> → create or select a project</> },
-                                { n: "2", text: <><strong>APIs & Services → Library</strong> → search <strong>Google Sheets API</strong> → Enable</> },
-                                { n: "3", text: <><strong>APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID</strong></> },
-                                { n: "4", text: <>Application type: <strong>Web application</strong> → add Authorised redirect URI:<br />
-                                  <code className="text-[10px] bg-surface-container px-1.5 py-0.5 rounded text-primary break-all">
-                                    {typeof window !== "undefined" ? window.location.origin : "https://your-app.com"}/api/sheets/callback
-                                  </code>
-                                </> },
-                                { n: "5", text: <>Copy <strong>Client ID</strong> and <strong>Client Secret</strong> from the credentials page</> },
-                                { n: "6", text: <>Add to your <code className="text-primary">.env.local</code> (and Render env vars):<br />
-                                  <code className="text-[10px] text-secondary leading-loose">
-                                    GOOGLE_CLIENT_ID=your-client-id<br />
-                                    GOOGLE_CLIENT_SECRET=your-client-secret<br />
-                                    NEXT_PUBLIC_APP_URL={typeof window !== "undefined" ? window.location.origin : "https://your-app.com"}
-                                  </code>
-                                </> },
-                                { n: "7", text: <>Restart the dev server (or redeploy on Render)</> },
-                              ].map(s => (
-                                <li key={s.n} className="flex items-start gap-2.5">
-                                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary-container/30 text-primary-container text-[10px] font-bold flex items-center justify-center mt-0.5">{s.n}</span>
-                                  <span className="leading-relaxed">{s.text}</span>
-                                </li>
-                              ))}
-                            </ol>
-                            <div className="mt-2 py-2 px-3 bg-primary-container/10 border border-primary-container/20 rounded text-[11px] text-primary-container flex items-start gap-1.5">
-                              <span className="material-symbols-outlined text-[13px] mt-0.5 shrink-0">warning</span>
-                              Admin setup not complete — env vars missing. Complete steps above, then come back.
-                            </div>
-                          </>
-                        )}
-
-                        {/* Phase B: User connect (always shown for private tab) */}
-                        <p className={`text-[11px] font-semibold text-on-surface ${!sheetStatus?.oauthReady ? "mt-3 pt-3 border-t border-outline-variant/40" : "mt-1"}`}>
-                          {!sheetStatus?.oauthReady ? "Part B — " : ""}Connect &amp; Sync
-                        </p>
-                        <ol className="space-y-2 text-[12px] text-on-surface-variant list-none">
-                          {[
-                            { n: "1", text: <>Click <strong>Connect Google Account</strong> below → sign in &amp; grant Sheets read access</> },
-                            { n: "2", text: <>You&apos;ll be redirected back here automatically once connected</> },
-                            { n: "3", text: <>Paste your private Google Sheet URL in the field below</> },
-                            { n: "4", text: <>Click <strong>Sync Now</strong> — works with any sheet your Google account can view</> },
-                          ].map(s => (
-                            <li key={s.n} className="flex items-start gap-2.5">
-                              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-tertiary/20 text-tertiary text-[10px] font-bold flex items-center justify-center mt-0.5">{s.n}</span>
-                              <span className="leading-relaxed">{s.text}</span>
-                            </li>
-                          ))}
-                        </ol>
-                        {sheetStatus?.oauthReady && (
-                          <div className="pt-2 border-t border-outline-variant/40 flex items-start gap-1.5">
-                            <span className="material-symbols-outlined text-[13px] text-secondary mt-0.5">check_circle</span>
-                            <p className="text-[11px] text-secondary">OAuth is configured. Use the button below to connect your account.</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    <div className="flex items-start gap-3 text-[13px] text-on-surface">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-tertiary/20 text-tertiary text-[11px] font-bold flex items-center justify-center mt-0.5">2</span>
+                      <span>Paste the sheet URL below and click <strong>Sync Now</strong> — dashboard updates automatically</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 pt-1 border-t border-outline-variant/40 text-[11px] text-on-surface-variant/60">
+                      <span className="material-symbols-outlined text-[13px]">autorenew</span>
+                      Dashboard re-checks your sheet every 2 minutes for new changes
+                    </div>
                   </div>
 
                   {/* Sheet URL input */}
@@ -633,8 +541,7 @@ export default function NewAdPage() {
                     {syncing ? "Syncing…" : "Sync Now"}
                   </button>
 
-                  {/* Connect / Disconnect */}
-                  {sheetStatus?.connected ? (
+                  {sheetStatus?.connected && (
                     <button
                       onClick={handleDisconnect}
                       className="w-full flex items-center justify-center gap-2 border border-outline-variant text-on-surface-variant py-2 rounded-lg text-sm hover:bg-surface-container-high transition-all"
@@ -642,19 +549,6 @@ export default function NewAdPage() {
                       <span className="material-symbols-outlined text-[16px]">link_off</span>
                       Disconnect Google Account
                     </button>
-                  ) : (
-                    <button
-                      onClick={handleConnect}
-                      disabled={sheetsHowTab === "private" && !sheetStatus?.oauthReady}
-                      className="w-full flex items-center justify-center gap-2 border border-tertiary/40 text-tertiary py-2.5 rounded-lg text-sm font-bold hover:bg-tertiary/10 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                    >
-                      <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>table_chart</span>
-                      Connect Google Account
-                    </button>
-                  )}
-
-                  {oauthErr && showSetup && (
-                    <pre className="text-[11px] text-on-surface-variant/70 bg-surface-container-highest rounded p-3 overflow-x-auto whitespace-pre-wrap">{oauthErr}</pre>
                   )}
                 </div>
               </section>
