@@ -11,7 +11,7 @@ import { Ad } from "@/lib/types";
 import {
   Columns, SlidersHorizontal, Mail, BellRing,
   AlertTriangle, Check, Plus, Trash2, PlusCircle,
-  AlertCircle, UserPlus, CheckCircle2, XCircle,
+  AlertCircle, UserPlus, CheckCircle2, XCircle, X,
   MailX, UserMinus, RotateCcw, Loader2, Send,
   Info, BellPlus, BellRing as BellActive, BellOff,
   Pencil,
@@ -37,13 +37,13 @@ function uid() { return Math.random().toString(36).slice(2); }
 
 function Section({ Icon, title, subtitle, children }: { Icon: LucideIcon; title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-5">
+    <section className="space-y-3">
       <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-          <Icon size={16} strokeWidth={1.75} className="text-primary" />
+        <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+          <Icon size={14} strokeWidth={1.75} className="text-primary" />
         </div>
         <div>
-          <h3 className="text-base font-semibold text-on-surface">{title}</h3>
+          <h3 className="text-sm font-bold text-on-surface tracking-tight">{title}</h3>
           {subtitle && <p className="text-[11px] text-on-surface-variant">{subtitle}</p>}
         </div>
       </div>
@@ -393,7 +393,7 @@ export default function SettingsPage() {
 
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
-        <div className="max-w-5xl mx-auto space-y-12">
+        <div className="max-w-5xl mx-auto space-y-8">
 
           {/* ── Section 1: Dashboard Columns ── */}
           <Section Icon={Columns} title="Dashboard Columns">
@@ -493,8 +493,8 @@ export default function SettingsPage() {
           </Section>
 
           {/* ── Section 3: Email Report Recipients ── */}
-          <Section Icon={Mail} title="Email Report Recipients" subtitle="Emails saved here receive periodic performance reports. Removing an email keeps it in the database (soft delete).">
-            <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 space-y-6 shadow-card">
+          <Section Icon={Mail} title="Email Report Recipients" subtitle="Recipients get scheduled performance reports. Removals are soft-deleted — email is kept in the database.">
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-4 space-y-4 shadow-card">
 
               {/* DB recipient list */}
               <div className="space-y-2">
@@ -554,7 +554,8 @@ export default function SettingsPage() {
                             <div className="min-w-0">
                               <p className="text-sm text-on-surface truncate">{u.email}</p>
                               <p className="text-[11px] text-on-surface-variant">
-                                {SCHEDULE_LABELS[u.schedule] ?? u.schedule} · {u.categories.join(", ")}
+                                {SCHEDULE_LABELS[u.schedule] ?? u.schedule}
+                                {u.categories.length > 0 && <> · {u.categories.join(", ")}</>}
                                 {u.last_sent_at && <> · Last sent: {new Date(u.last_sent_at).toLocaleDateString("en-IN",{day:"2-digit",month:"short"})}</>}
                               </p>
                             </div>
@@ -571,9 +572,14 @@ export default function SettingsPage() {
                                 </button>
                               </>
                             ) : (
-                              <button onClick={() => restoreUser(u.id)} title="Restore" className="p-1.5 text-secondary hover:bg-secondary/10 rounded-full transition-colors">
-                                <RotateCcw size={14} strokeWidth={1.75} />
-                              </button>
+                              <>
+                                <button onClick={() => restoreUser(u.id)} title="Restore" className="p-1.5 text-secondary hover:bg-secondary/10 rounded-full transition-colors">
+                                  <RotateCcw size={14} strokeWidth={1.75} />
+                                </button>
+                                <button onClick={() => setUsers(prev => prev.filter(u2 => u2.id !== u.id))} title="Dismiss from view" className="p-1.5 text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-surface-container rounded-full transition-colors">
+                                  <X size={13} strokeWidth={2} />
+                                </button>
+                              </>
                             )}
                           </div>
                         </div>
@@ -609,28 +615,28 @@ export default function SettingsPage() {
               </div>
 
               {/* Manual send */}
-              <div className="border-t border-outline-variant pt-5 space-y-4">
-                <p className="text-[10px] uppercase tracking-widest text-on-surface-variant">Send Report Now</p>
-                <div>
-                  <p className="text-[10px] text-on-surface-variant uppercase mb-2">Include categories</p>
-                  <div className="flex flex-wrap gap-2">
-                    {["kill","scale","monitor","testing"].map(cat => {
-                      const on = email.categories.includes(cat);
-                      return (
-                        <button key={cat} onClick={() => toggleEmailCategory(cat)}
-                          className={`flex items-center gap-1 px-3 py-1 rounded-full text-[11px] border transition-colors ${on ? "bg-secondary-container border-secondary text-on-secondary-container" : "bg-surface-container border-outline-variant text-on-surface-variant hover:border-primary/50"}`}>
-                          {on ? <Check size={11} strokeWidth={2.5} /> : <Plus size={11} strokeWidth={2.5} />}
-                          {cat.toUpperCase()}
-                        </button>
-                      );
-                    })}
-                  </div>
+              <div className="border-t border-outline-variant pt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] uppercase tracking-widest text-on-surface-variant">Send Report Now</p>
+                  <p className="text-[10px] text-on-surface-variant/60">Choose categories, then hit send</p>
                 </div>
-                <button onClick={sendReport} disabled={sending || (!email.recipients.length && users.filter(u => u.is_active).length === 0) || !email.categories.length}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-primary text-on-primary text-sm font-semibold rounded-xl hover:bg-primary-container disabled:opacity-40 transition-all">
-                  {sending ? <Loader2 size={16} strokeWidth={2} className="animate-spin" /> : <Send size={15} strokeWidth={1.75} />}
-                  {sending ? "Sending…" : "Send Report"}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {["kill","scale","monitor","testing"].map(cat => {
+                    const on = email.categories.includes(cat);
+                    return (
+                      <button key={cat} onClick={() => toggleEmailCategory(cat)}
+                        className={`flex items-center gap-1 px-3 py-1 rounded-full text-[11px] border transition-colors ${on ? "bg-secondary-container border-secondary text-on-secondary-container" : "bg-surface-container border-outline-variant text-on-surface-variant hover:border-primary/50"}`}>
+                        {on ? <Check size={10} strokeWidth={2.5} /> : <Plus size={10} strokeWidth={2.5} />}
+                        {cat.toUpperCase()}
+                      </button>
+                    );
+                  })}
+                  <button onClick={sendReport} disabled={sending || (!email.recipients.length && users.filter(u => u.is_active).length === 0) || !email.categories.length}
+                    className="ml-auto flex items-center gap-1.5 px-4 py-1.5 bg-primary text-on-primary text-[12px] font-semibold rounded-xl hover:bg-primary-container disabled:opacity-40 transition-all">
+                    {sending ? <Loader2 size={13} strokeWidth={2} className="animate-spin" /> : <Send size={13} strokeWidth={1.75} />}
+                    {sending ? "Sending…" : "Send Report"}
+                  </button>
+                </div>
                 {sendMsg && (
                   <div className={`flex items-start gap-2 px-4 py-3 rounded-xl border text-sm ${sendMsg.ok ? "bg-secondary-container/50 border-secondary/30 text-on-secondary-container" : "bg-error-container/30 border-error/20 text-error"}`}>
                     {sendMsg.ok ? <CheckCircle2 size={15} strokeWidth={1.75} className="mt-0.5 shrink-0" /> : <XCircle size={15} strokeWidth={1.75} className="mt-0.5 shrink-0" />}
@@ -643,16 +649,12 @@ export default function SettingsPage() {
 
           {/* ── Section 4: Category Change Alerts ── */}
           <Section Icon={BellRing} title="Category Change Alerts"
-            subtitle="When an ad moves from one category to another (e.g. Monitor → Kill), these recipients get notified. Each recipient has their own schedule.">
-            <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 space-y-5 shadow-card">
+            subtitle="Notifies recipients when an ad moves between categories (e.g. Monitor → Kill). Each recipient sets their own cadence.">
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-4 space-y-4 shadow-card">
 
-              <div className="bg-surface-container rounded-xl p-3 flex items-start gap-2.5">
-                <Info size={15} strokeWidth={1.75} className="text-tertiary mt-0.5 shrink-0" />
-                <p className="text-[12px] text-on-surface-variant leading-relaxed">
-                  <strong className="text-on-surface">Instant</strong> — email sent within the next 2-minute sync cycle when a change is detected.<br />
-                  <strong className="text-on-surface">Daily / Weekly / Monthly</strong> — all changes in that period are bundled into one email.<br />
-                  When classification criteria change, the email includes a warning about possible extra entries.
-                </p>
+              <div className="flex items-center gap-2 text-[11px] text-on-surface-variant">
+                <Info size={13} strokeWidth={1.75} className="text-tertiary shrink-0" />
+                <span><strong className="text-on-surface">Instant</strong> — next 2-min sync. &nbsp;<strong className="text-on-surface">Batched</strong> — changes bundled by day / week / month.</span>
               </div>
 
               <div className="space-y-2">
@@ -714,9 +716,14 @@ export default function SettingsPage() {
                                 </button>
                               </>
                             ) : (
-                              <button onClick={() => restoreAlert(a.id)} title="Restore" className="p-1.5 text-secondary hover:bg-secondary/10 rounded-full transition-colors">
-                                <RotateCcw size={14} strokeWidth={1.75} />
-                              </button>
+                              <>
+                                <button onClick={() => restoreAlert(a.id)} title="Restore" className="p-1.5 text-secondary hover:bg-secondary/10 rounded-full transition-colors">
+                                  <RotateCcw size={14} strokeWidth={1.75} />
+                                </button>
+                                <button onClick={() => setAlerts(prev => prev.filter(a2 => a2.id !== a.id))} title="Dismiss from view" className="p-1.5 text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-surface-container rounded-full transition-colors">
+                                  <X size={13} strokeWidth={2} />
+                                </button>
+                              </>
                             )}
                           </div>
                         </div>
