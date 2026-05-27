@@ -21,8 +21,8 @@ export default function Sidebar() {
             <Leaf size={16} color="#FFFFFF" strokeWidth={1.75} />
           </div>
           <div>
-            <h1 className="text-[15px] font-bold text-on-surface tracking-tight leading-tight">Ad Intel</h1>
-            <p className="text-[10px] text-on-surface-variant uppercase tracking-widest leading-tight">Little Joys</p>
+            <h1 className="text-[15px] font-extrabold text-on-surface tracking-tight leading-tight">Ad Intel</h1>
+            <p className="text-[10px] text-on-surface-variant uppercase tracking-[0.18em] leading-tight">Little Joys</p>
           </div>
         </div>
       </div>

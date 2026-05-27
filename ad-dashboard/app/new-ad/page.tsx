@@ -2,6 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import {
+  FileEdit, FileUp, Download, RefreshCw, CloudUpload,
+  CheckCircle2, AlertCircle, Loader2, Plus, Link2Off, Clock,
+} from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface FormData {
@@ -14,23 +18,17 @@ type StatusMsg = { ok: boolean; text: string } | null;
 interface SheetsStatus { oauthReady: boolean; connected: boolean; sheetConfig: { sheetId: string; lastSync: string | null } | null }
 interface AdMeta { platforms: string[]; adTypes: string[]; brands: string[]; categories: string[]; themes: string[]; audiences: string[] }
 
-// Static fallbacks used before /api/ads/meta loads
 const FALLBACK_PLATFORMS = ["YouTube", "Meta", "Google", "Instagram", "TikTok", "X (Twitter)"];
 const FALLBACK_AD_TYPES  = ["Video Reel", "Static Carousel", "Image Post", "Story", "Search Ad", "Display Ad"];
 const STATUSES           = ["Active", "Paused", "Completed"];
 
-// Columns that map to DB fields (recommendation is computed — excluded)
 const DB_COLUMNS = new Set([
   "ad_id","platform","brand","category","ad_type","target_audience","creative_theme",
   "status","start_date","days_running","spend","revenue","roas","impressions","clicks",
   "ctr","conversions","cpc","cpa","creative_score","landing_page_score","frequency",
   "video_completion_rate","product","landing_page",
 ]);
-const NUMERIC_COLS = new Set([
-  "days_running","spend","revenue","roas","impressions","clicks","ctr","conversions",
-  "cpc","cpa","creative_score","landing_page_score","frequency","video_completion_rate",
-]);
-// These can be null when empty; all other numerics default to 0
+const NUMERIC_COLS  = new Set(["days_running","spend","revenue","roas","impressions","clicks","ctr","conversions","cpc","cpa","creative_score","landing_page_score","frequency","video_completion_rate"]);
 const NULLABLE_COLS = new Set(["video_completion_rate"]);
 
 const BLANK: FormData = {
@@ -40,30 +38,37 @@ const BLANK: FormData = {
   product: "", landing_page: "",
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Shared input primitives ───────────────────────────────────────────────────
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
       <label className="block text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">{label}</label>
       {children}
-      {error && <p className="text-[11px] text-primary-container mt-1 flex items-center gap-1"><span className="material-symbols-outlined text-[13px]">error</span>{error}</p>}
+      {error && <p className="text-[11px] text-error mt-0.5">{error}</p>}
     </div>
   );
 }
 function Input({ className = "", ...p }: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <input
-      {...p}
-      className={`w-full bg-surface-container-lowest border border-outline-variant rounded px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/40 focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all ${className}`}
+    <input {...p}
+      className={`w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/40 focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none transition-all ${className}`}
     />
   );
 }
 function Select({ className = "", ...p }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select
-      {...p}
-      className={`w-full bg-surface-container-lowest border border-outline-variant rounded px-3 py-2 text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all ${className}`}
+    <select {...p}
+      className={`w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none transition-all ${className}`}
     />
+  );
+}
+function StatusBanner({ msg }: { msg: StatusMsg }) {
+  if (!msg) return null;
+  return (
+    <div className={`flex items-start gap-2 px-3 py-2.5 rounded-xl border text-[12px] ${msg.ok ? "bg-secondary-container/50 border-secondary/30 text-on-secondary-container" : "bg-error-container/30 border-error/20 text-error"}`}>
+      {msg.ok ? <CheckCircle2 size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" /> : <AlertCircle size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" />}
+      <span>{msg.text}</span>
+    </div>
   );
 }
 
@@ -71,7 +76,6 @@ function Select({ className = "", ...p }: React.SelectHTMLAttributes<HTMLSelectE
 export default function NewAdPage() {
   const router = useRouter();
 
-  // Dynamic meta from DB
   const [meta, setMeta] = useState<AdMeta>({
     platforms: FALLBACK_PLATFORMS, adTypes: FALLBACK_AD_TYPES,
     brands: [], categories: [], themes: [], audiences: [],
@@ -93,7 +97,7 @@ export default function NewAdPage() {
         ad_type:  prev.ad_type  || (d.adTypes?.[0]  ?? FALLBACK_AD_TYPES[0]),
         brand:    prev.brand    || "",
       }));
-    }).catch(() => {/* keep fallbacks */});
+    }).catch(() => {});
   }, []);
 
   // Manual entry
@@ -103,10 +107,10 @@ export default function NewAdPage() {
   const [submitting, setSubmitting] = useState(false);
 
   // CSV upload
-  const [csvFile,    setCsvFile]    = useState<File | null>(null);
-  const [csvDrag,    setCsvDrag]    = useState(false);
-  const [csvStatus,  setCsvStatus]  = useState<StatusMsg>(null);
-  const [uploading,  setUploading]  = useState(false);
+  const [csvFile,   setCsvFile]   = useState<File | null>(null);
+  const [csvDrag,   setCsvDrag]   = useState(false);
+  const [csvStatus, setCsvStatus] = useState<StatusMsg>(null);
+  const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Google Sheets
@@ -114,16 +118,11 @@ export default function NewAdPage() {
   const [sheetStatus, setSheetStatus] = useState<SheetsStatus | null>(null);
   const [syncing,     setSyncing]     = useState(false);
   const [syncMsg,     setSyncMsg]     = useState<StatusMsg>(null);
-  const [oauthErr,    setOauthErr]    = useState<string | null>(null);
-  const [showSetup,   setShowSetup]   = useState(false);
-  const [sheetsHowTab, setSheetsHowTab] = useState<"public" | "private" | "appsscript">("appsscript");
-  const [pushSecret,   setPushSecret]   = useState<string | null>(null);
 
-  // Read URL params (after OAuth redirect)
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     if (p.get("sheets_connected")) {
-      setSyncMsg({ ok: true, text: "Google Account connected successfully! Paste a sheet URL to sync." });
+      setSyncMsg({ ok: true, text: "Google Account connected! Paste a sheet URL to sync." });
       window.history.replaceState({}, "", "/new-ad");
     }
     if (p.get("sheets_error")) {
@@ -134,146 +133,106 @@ export default function NewAdPage() {
   }, []);
 
   const fetchSheetsStatus = useCallback(async () => {
-    const [statusRes, configRes] = await Promise.all([
-      fetch("/api/sheets/status"),
-      fetch("/api/sheets/config"),
-    ]);
-    const d = await statusRes.json() as SheetsStatus;
+    const [sr, cr] = await Promise.all([fetch("/api/sheets/status"), fetch("/api/sheets/config")]);
+    const d = await sr.json() as SheetsStatus;
     setSheetStatus(d);
     if (d.sheetConfig?.sheetId && d.sheetConfig.sheetId !== "apps-script") {
       setSheetUrl(`https://docs.google.com/spreadsheets/d/${d.sheetConfig.sheetId}/edit`);
     }
-    const cfg = await configRes.json() as { pushSecret: string | null };
-    setPushSecret(cfg.pushSecret);
+    await cr.json();
   }, []);
 
-  // ── Manual entry submit ───────────────────────────────────────────────────
   function validate(): boolean {
     const e: Partial<FormData> = {};
-    if (!form.ad_id.trim())       e.ad_id       = "Ad ID is required";
-    if (!form.brand.trim())       e.brand       = "Brand is required";
-    if (!form.category.trim())    e.category    = "Category is required";
-    if (!form.target_audience.trim()) e.target_audience = "Audience is required";
-    if (!form.creative_theme.trim())  e.creative_theme  = "Creative theme is required";
-    if (!form.spend || isNaN(Number(form.spend))) e.spend = "Valid spend amount is required";
+    if (!form.ad_id.trim())           e.ad_id           = "Required";
+    if (!form.brand.trim())           e.brand           = "Required";
+    if (!form.category.trim())        e.category        = "Required";
+    if (!form.target_audience.trim()) e.target_audience = "Required";
+    if (!form.creative_theme.trim())  e.creative_theme  = "Required";
+    if (!form.spend || isNaN(Number(form.spend))) e.spend = "Valid spend required";
     setErrors(e);
     return Object.keys(e).length === 0;
   }
 
   async function handleSubmit() {
     if (!validate()) return;
-    setSubmitting(true);
-    setFormStatus(null);
+    setSubmitting(true); setFormStatus(null);
     try {
       const r    = await fetch("/api/ads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, spend: Number(form.spend) }) });
       const data = await r.json();
       if (data.error) throw new Error(data.error);
-      setFormStatus({ ok: true, text: `Ad ${form.ad_id} added! Redirecting to dashboard…` });
+      setFormStatus({ ok: true, text: `Ad ${form.ad_id} added! Redirecting…` });
       setForm(prev => ({ ...BLANK, platform: prev.platform, ad_type: prev.ad_type }));
       setErrors({});
       setTimeout(() => { router.refresh(); router.push("/"); }, 1200);
-    } catch (err) {
-      setFormStatus({ ok: false, text: String(err) });
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (err) { setFormStatus({ ok: false, text: String(err) }); }
+    finally      { setSubmitting(false); }
   }
 
-  // ── CSV upload ────────────────────────────────────────────────────────────
   function handleFileChange(file: File | null) {
     if (!file) return;
     if (!file.name.endsWith(".csv")) { setCsvStatus({ ok: false, text: "Only .csv files are accepted." }); return; }
-    setCsvFile(file);
-    setCsvStatus(null);
+    setCsvFile(file); setCsvStatus(null);
   }
 
   async function handleCsvUpload() {
     if (!csvFile) return;
-    setUploading(true);
-    setCsvStatus(null);
+    setUploading(true); setCsvStatus(null);
     try {
-      const text  = await csvFile.text();
-      // Handle both \r\n (Windows) and \n (Unix) line endings
-      const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").filter(l => l.trim());
+      const lines = (await csvFile.text()).replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").filter(l => l.trim());
       if (lines.length < 2) throw new Error("File has no data rows.");
-
-      // Normalise headers: lowercase + underscores
       const rawHeaders = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/\s+/g, "_"));
-
-      // Mandatory columns check
-      if (!rawHeaders.includes("ad_id")) throw new Error("Column 'ad_id' is required but missing from your CSV.");
-      if (!rawHeaders.includes("brand")) throw new Error("Column 'brand' is required but missing from your CSV.");
-
-      // Only keep headers that map to DB columns (skip 'recommendation' and unknowns)
+      if (!rawHeaders.includes("ad_id")) throw new Error("Column 'ad_id' is missing.");
+      if (!rawHeaders.includes("brand")) throw new Error("Column 'brand' is missing.");
       const dbHeaders = rawHeaders.map(h => DB_COLUMNS.has(h) ? h : null);
-
       const ads: Record<string, unknown>[] = [];
       const rowErrors: string[] = [];
-
       for (let i = 1; i < lines.length; i++) {
-        const cols   = lines[i].split(",").map(c => c.trim());
-        const record: Record<string, unknown> = {};
-
+        const cols = lines[i].split(",").map(c => c.trim());
+        const rec: Record<string, unknown> = {};
         dbHeaders.forEach((col, idx) => {
-          if (!col) return; // skip non-DB columns (recommendation etc.)
+          if (!col) return;
           const raw = (cols[idx] ?? "").trim();
-          if (raw === "") return; // skip empty cells — don't overwrite existing DB values
-          record[col] = NUMERIC_COLS.has(col) ? Number(raw) : raw;
+          if (raw === "") return;
+          rec[col] = NUMERIC_COLS.has(col) ? Number(raw) : raw;
         });
-
-        const adId  = String(record.ad_id  ?? "").trim();
-        const brand = String(record.brand  ?? "").trim();
-
-        if (!adId)  { rowErrors.push(`Row ${i + 1}: missing ad_id — skipped`);  continue; }
-        if (!brand) { rowErrors.push(`Row ${i + 1}: missing brand — skipped`);   continue; }
-
-        record.ad_id = adId;
-        record.brand = brand;
-        ads.push(record);
+        const adId = String(rec.ad_id ?? "").trim();
+        const brand = String(rec.brand ?? "").trim();
+        if (!adId)  { rowErrors.push(`Row ${i + 1}: missing ad_id`);  continue; }
+        if (!brand) { rowErrors.push(`Row ${i + 1}: missing brand`);   continue; }
+        rec.ad_id = adId; rec.brand = brand;
+        ads.push(rec);
       }
-
-      if (ads.length === 0) {
-        throw new Error(`No valid rows found.${rowErrors.length ? " Errors: " + rowErrors.slice(0, 3).join("; ") : ""}`);
-      }
-
-      // Upsert all valid rows via /api/ads
+      if (ads.length === 0) throw new Error(`No valid rows.${rowErrors.length ? " " + rowErrors.slice(0,3).join("; ") : ""}`);
       let added = 0, updated = 0;
       for (const ad of ads) {
-        const r = await fetch("/api/ads", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(ad),
-        });
+        const r = await fetch("/api/ads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ad) });
         const d = await r.json();
-        if (!r.ok) { rowErrors.push(`${ad.ad_id}: ${d.error ?? "server error"}`); continue; }
-        added   += d.added   ?? 0;
-        updated += d.updated ?? 0;
+        if (!r.ok) { rowErrors.push(`${ad.ad_id}: ${d.error ?? "error"}`); continue; }
+        added += d.added ?? 0; updated += d.updated ?? 0;
       }
-
-      const msg    = [added ? `${added} added` : "", updated ? `${updated} updated` : ""].filter(Boolean).join(", ") || "0 changes";
-      const errTxt = rowErrors.length ? ` · ${rowErrors.length} row(s) skipped` : "";
-      setCsvStatus({ ok: true, text: `Import complete — ${msg}.${errTxt} Redirecting to dashboard…` });
+      const msg = [added ? `${added} added` : "", updated ? `${updated} updated` : ""].filter(Boolean).join(", ") || "0 changes";
+      setCsvStatus({ ok: true, text: `Done — ${msg}.${rowErrors.length ? ` ${rowErrors.length} rows skipped.` : ""} Redirecting…` });
       setCsvFile(null);
-      if (rowErrors.length) console.warn("CSV row errors:", rowErrors);
-      // refresh() clears Next.js router cache; push navigates after cache is cleared
       router.refresh();
       setTimeout(() => router.push("/"), 800);
-    } catch (err) {
-      setCsvStatus({ ok: false, text: String(err) });
-    } finally {
-      setUploading(false);
-    }
+    } catch (err) { setCsvStatus({ ok: false, text: String(err) }); }
+    finally      { setUploading(false); }
   }
 
-  // ── Google Sheets sync ────────────────────────────────────────────────────
-  async function handleConnect() {
-    const r    = await fetch("/api/sheets/connect");
-    if (r.redirected) { window.location.href = r.url; return; }
-    const data = await r.json();
-    if (data.setup) {
-      setOauthErr(data.instructions?.join("\n") ?? "Google OAuth not configured.");
-      setShowSetup(true);
-    }
+  async function handleSync() {
+    if (!sheetUrl.trim()) { setSyncMsg({ ok: false, text: "Paste a Google Sheets URL first." }); return; }
+    setSyncing(true); setSyncMsg(null);
+    try {
+      const r    = await fetch("/api/sheets/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sheetUrl: sheetUrl.trim() }) });
+      const data = await r.json();
+      if (data.error) throw new Error(data.error);
+      setSyncMsg({ ok: true, text: `Synced ${data.total} rows — ${data.added} added, ${data.updated} updated.` });
+      await fetchSheetsStatus();
+      router.refresh();
+      setTimeout(() => router.push("/"), 1500);
+    } catch (err) { setSyncMsg({ ok: false, text: String(err) }); }
+    finally      { setSyncing(false); }
   }
 
   async function handleDisconnect() {
@@ -282,297 +241,217 @@ export default function NewAdPage() {
     setSyncMsg({ ok: true, text: "Google account disconnected." });
   }
 
-  async function handleSync() {
-    if (!sheetUrl.trim()) { setSyncMsg({ ok: false, text: "Paste a Google Sheets URL first." }); return; }
-    setSyncing(true);
-    setSyncMsg(null);
-    try {
-      const r    = await fetch("/api/sheets/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sheetUrl: sheetUrl.trim() }) });
-      const data = await r.json();
-      if (data.error) throw new Error(data.error);
-      const errNote = data.errors?.length ? ` (${data.errors.length} rows skipped)` : "";
-      setSyncMsg({ ok: true, text: `Synced ${data.total} rows — ${data.added} added, ${data.updated} updated.${errNote}` });
-      await fetchSheetsStatus();
-      router.refresh();
-      setTimeout(() => router.push("/"), 1500);
-    } catch (err) {
-      setSyncMsg({ ok: false, text: String(err) });
-    } finally {
-      setSyncing(false);
-    }
-  }
-
   const f = (k: keyof FormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm(prev => ({ ...prev, [k]: e.target.value }));
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Header */}
-      <header className="flex items-center justify-between h-16 px-6 bg-surface border-b border-outline-variant/30 shrink-0">
+      <header className="flex items-center h-16 px-6 bg-surface-container-lowest border-b border-outline-variant shrink-0">
         <div>
-          <h2 className="text-base font-extrabold text-on-surface">New Analysis</h2>
-          <p className="text-[11px] text-on-surface-variant">Populate campaign metrics via manual entry, CSV upload, or Google Sheets sync.</p>
+          <h2 className="text-sm font-extrabold text-on-surface tracking-tight">New Analysis</h2>
+          <p className="text-[10px] text-on-surface-variant">Add ads via manual entry, CSV upload, or Google Sheets sync.</p>
         </div>
       </header>
 
       <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-12 gap-5">
+        <div className="max-w-6xl mx-auto grid grid-cols-12 gap-5">
 
-            {/* ── Left: Manual Entry ──────────────────────────────────────── */}
-            <section className="col-span-12 lg:col-span-8 bg-surface-container rounded-xl border border-outline-variant overflow-hidden">
-              <div className="px-6 py-4 border-b border-outline-variant bg-surface-container-high flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-primary text-[20px]">edit_note</span>
-                  <h3 className="text-sm font-bold text-on-surface">Manual Data Entry</h3>
-                </div>
-                <span className="text-[10px] uppercase tracking-widest text-on-surface-variant/60">Required fields marked *</span>
+          {/* ── Left: Manual Entry ──────────────────────────────────────── */}
+          <section className="col-span-12 lg:col-span-7 bg-surface-container-lowest border border-outline-variant rounded-2xl overflow-hidden shadow-card">
+            <div className="px-5 py-3.5 border-b border-outline-variant bg-surface-container flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileEdit size={15} strokeWidth={1.75} className="text-primary" />
+                <h3 className="text-sm font-semibold text-on-surface">Manual Data Entry</h3>
+              </div>
+              <span className="text-[10px] text-on-surface-variant/60 uppercase tracking-wide">* required</span>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Ad ID *" error={errors.ad_id}>
+                  <Input placeholder="e.g. AD-99201" value={form.ad_id} onChange={f("ad_id")} />
+                </Field>
+                <Field label="Platform *">
+                  <Select value={form.platform} onChange={f("platform")}>
+                    {meta.platforms.map(p => <option key={p}>{p}</option>)}
+                  </Select>
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Brand *" error={errors.brand}>
+                  <Select value={form.brand} onChange={f("brand")}>
+                    <option value="">Select brand…</option>
+                    {meta.brands.map(b => <option key={b}>{b}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Category *" error={errors.category}>
+                  <Input placeholder="e.g. Hair Care" value={form.category} onChange={f("category")} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Ad Type *">
+                  <Select value={form.ad_type} onChange={f("ad_type")}>
+                    {meta.adTypes.map(t => <option key={t}>{t}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Creative Theme *" error={errors.creative_theme}>
+                  <Input placeholder="e.g. Doctor Trust" value={form.creative_theme} onChange={f("creative_theme")} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Target Audience *" error={errors.target_audience}>
+                  <Input placeholder="e.g. M 25–34" value={form.target_audience} onChange={f("target_audience")} />
+                </Field>
+                <Field label="Status">
+                  <Select value={form.status} onChange={f("status")}>
+                    {STATUSES.map(s => <option key={s}>{s}</option>)}
+                  </Select>
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Start Date *">
+                  <Input type="date" value={form.start_date} onChange={f("start_date")} />
+                </Field>
+                <Field label="Spend (₹) *" error={errors.spend}>
+                  <Input type="number" placeholder="0.00" min="0" step="0.01" value={form.spend} onChange={f("spend")} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Product Name (optional)">
+                  <Input placeholder="e.g. Hair Growth Kit" value={form.product} onChange={f("product")} />
+                </Field>
+                <Field label="Landing Page URL (optional)">
+                  <Input type="url" placeholder="https://…" value={form.landing_page} onChange={f("landing_page")} />
+                </Field>
               </div>
 
-              <div className="p-6 space-y-5">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Field label="Ad ID *" error={errors.ad_id}>
-                    <Input placeholder="e.g. AD-99201" value={form.ad_id} onChange={f("ad_id")} />
-                  </Field>
-                  <Field label="Platform *">
-                    <Select value={form.platform} onChange={f("platform")}>
-                      {meta.platforms.map(p => <option key={p}>{p}</option>)}
-                    </Select>
-                  </Field>
+              <StatusBanner msg={formStatus} />
+
+              <div className="flex justify-end pt-1">
+                <button onClick={handleSubmit} disabled={submitting}
+                  className="flex items-center gap-2 bg-primary text-on-primary px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-primary-container disabled:opacity-50 transition-all">
+                  {submitting ? <Loader2 size={15} strokeWidth={2} className="animate-spin" /> : <Plus size={15} strokeWidth={2.5} />}
+                  {submitting ? "Adding…" : "Add to Dashboard"}
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* ── Right column ────────────────────────────────────────────── */}
+          <div className="col-span-12 lg:col-span-5 flex flex-col gap-4">
+
+            {/* CSV Bulk Upload */}
+            <section className="bg-surface-container-lowest border border-outline-variant rounded-2xl overflow-hidden shadow-card">
+              <div className="px-5 py-4 border-b border-outline-variant bg-surface-container flex items-center gap-3">
+                <FileUp size={18} strokeWidth={1.75} className="text-secondary shrink-0" />
+                <h3 className="text-xl font-extrabold tracking-tight text-on-surface">Bulk Upload</h3>
+              </div>
+              <div className="p-4 space-y-3">
+                <div
+                  onClick={() => fileRef.current?.click()}
+                  onDragOver={e => { e.preventDefault(); setCsvDrag(true); }}
+                  onDragLeave={() => setCsvDrag(false)}
+                  onDrop={e => { e.preventDefault(); setCsvDrag(false); handleFileChange(e.dataTransfer.files[0]); }}
+                  className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${csvDrag ? "border-secondary bg-secondary/5" : "border-outline-variant hover:border-secondary/50"}`}
+                >
+                  <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={e => handleFileChange(e.target.files?.[0] ?? null)} />
+                  <CloudUpload size={28} strokeWidth={1.25} className="mx-auto mb-1.5 text-on-surface-variant/40" />
+                  {csvFile
+                    ? <p className="text-sm font-semibold text-secondary">{csvFile.name}</p>
+                    : <p className="text-sm text-on-surface-variant">Drag & drop or <span className="text-secondary underline cursor-pointer">browse</span></p>}
+                  <p className="text-[11px] text-on-surface-variant/50 mt-0.5">CSV only · max 5MB</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Field label="Brand *" error={errors.brand}>
-                    <Select value={form.brand} onChange={f("brand")}>
-                      <option value="">Select brand…</option>
-                      {meta.brands.map(b => <option key={b}>{b}</option>)}
-                    </Select>
-                  </Field>
-                  <Field label="Category *" error={errors.category}>
-                    <Input placeholder="e.g. Hair Care" value={form.category} onChange={f("category")} />
-                  </Field>
-                </div>
+                <StatusBanner msg={csvStatus} />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Field label="Ad Type *">
-                    <Select value={form.ad_type} onChange={f("ad_type")}>
-                      {meta.adTypes.map(t => <option key={t}>{t}</option>)}
-                    </Select>
-                  </Field>
-                  <Field label="Creative Theme *" error={errors.creative_theme}>
-                    <Input placeholder="e.g. Doctor Trust" value={form.creative_theme} onChange={f("creative_theme")} />
-                  </Field>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Field label="Target Audience *" error={errors.target_audience}>
-                    <Input placeholder="e.g. M 25-34" value={form.target_audience} onChange={f("target_audience")} />
-                  </Field>
-                  <Field label="Status">
-                    <Select value={form.status} onChange={f("status")}>
-                      {STATUSES.map(s => <option key={s}>{s}</option>)}
-                    </Select>
-                  </Field>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Field label="Start Date *">
-                    <Input type="date" value={form.start_date} onChange={f("start_date")} />
-                  </Field>
-                  <Field label="Spend (₹) *" error={errors.spend}>
-                    <Input type="number" placeholder="0.00" min="0" step="0.01" value={form.spend} onChange={f("spend")} />
-                  </Field>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Field label="Product Name (Optional)">
-                    <Input placeholder="e.g. Hair Growth Kit" value={form.product} onChange={f("product")} />
-                  </Field>
-                  <Field label="Landing Page URL (Optional)">
-                    <Input type="url" placeholder="https://..." value={form.landing_page} onChange={f("landing_page")} />
-                  </Field>
-                </div>
-
-                {formStatus && (
-                  <div className={`flex items-start gap-2 px-4 py-3 rounded-lg border text-sm ${formStatus.ok ? "bg-secondary/10 border-secondary/30 text-secondary" : "bg-error-container/10 border-error-container/30 text-error"}`}>
-                    <span className="material-symbols-outlined text-[16px] mt-0.5 shrink-0">{formStatus.ok ? "check_circle" : "error"}</span>
-                    <span>{formStatus.text}</span>
-                  </div>
-                )}
-
-                <div className="pt-2 flex justify-end">
-                  <button
-                    onClick={handleSubmit}
-                    disabled={submitting}
-                    className="flex items-center gap-2 bg-primary-container text-on-primary-container px-6 py-2.5 rounded-lg text-sm font-bold hover:opacity-90 disabled:opacity-50 transition-all active:scale-95"
-                  >
-                    {submitting
-                      ? <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
-                      : <span className="material-symbols-outlined text-[18px]">add</span>}
-                    {submitting ? "Adding…" : "Add to Dashboard"}
+                <div className="flex items-center gap-2">
+                  <button onClick={handleCsvUpload} disabled={!csvFile || uploading}
+                    className="flex-1 flex items-center justify-center gap-2 bg-secondary text-on-secondary py-2 rounded-xl text-sm font-semibold hover:opacity-90 disabled:opacity-40 transition-all">
+                    {uploading ? <Loader2 size={14} strokeWidth={2} className="animate-spin" /> : <FileUp size={14} strokeWidth={2} />}
+                    {uploading ? "Importing…" : "Import CSV"}
                   </button>
+                  <a href="/api/sheets/template"
+                    className="flex items-center gap-1.5 text-[12px] text-on-surface-variant hover:text-secondary transition-colors whitespace-nowrap">
+                    <Download size={13} strokeWidth={1.75} />
+                    Template
+                  </a>
                 </div>
               </div>
             </section>
 
-            {/* ── Right column ────────────────────────────────────────────── */}
-            <div className="col-span-12 lg:col-span-4 flex flex-col gap-5">
-
-              {/* CSV Bulk Upload */}
-              <section className="bg-surface-container rounded-xl border border-outline-variant overflow-hidden">
-                <div className="px-5 py-4 border-b border-outline-variant bg-surface-container-high flex items-center gap-2">
-                  <span className="material-symbols-outlined text-secondary text-[20px]">upload_file</span>
-                  <h3 className="text-sm font-bold text-on-surface">Bulk Upload</h3>
+            {/* Google Sheets Sync */}
+            <section className="bg-surface-container-lowest border border-outline-variant rounded-2xl overflow-hidden shadow-card">
+              <div className="px-5 py-4 border-b border-outline-variant bg-surface-container flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <RefreshCw size={18} strokeWidth={1.75} className="text-tertiary shrink-0" />
+                  <h3 className="text-xl font-extrabold tracking-tight text-on-surface">Google Sheets Sync</h3>
                 </div>
-                <div className="p-5 space-y-4">
-                  <p className="text-[13px] text-on-surface-variant leading-relaxed">
-                    Upload a <strong>.csv</strong> file in the required format. Other formats will be rejected.
+                {sheetStatus?.connected && (
+                  <span className="flex items-center gap-1 text-[11px] text-secondary font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
+                    Connected
+                  </span>
+                )}
+              </div>
+              <div className="p-4 space-y-3">
+                {/* Compact instructions */}
+                <div className="bg-surface-container rounded-xl p-3 space-y-1.5 text-[12px] text-on-surface-variant">
+                  <p><span className="font-semibold text-on-surface">1.</span> Share your sheet → Anyone with link → Viewer</p>
+                  <p><span className="font-semibold text-on-surface">2.</span> Paste the URL below and click <strong className="text-on-surface">Sync Now</strong></p>
+                  <p className="flex items-center gap-1 text-[11px] text-on-surface-variant/60 pt-0.5 border-t border-outline-variant/40">
+                    <RefreshCw size={10} strokeWidth={2} /> Re-checks every 2 minutes automatically
                   </p>
+                </div>
 
-                  {/* Drop zone */}
-                  <div
-                    onClick={() => fileRef.current?.click()}
-                    onDragOver={e => { e.preventDefault(); setCsvDrag(true); }}
-                    onDragLeave={() => setCsvDrag(false)}
-                    onDrop={e => { e.preventDefault(); setCsvDrag(false); handleFileChange(e.dataTransfer.files[0]); }}
-                    className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${csvDrag ? "border-secondary bg-secondary/5" : "border-outline-variant hover:border-secondary/50"}`}
-                  >
-                    <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={e => handleFileChange(e.target.files?.[0] ?? null)} />
-                    <span className="material-symbols-outlined text-[36px] text-on-surface-variant block mb-2">cloud_upload</span>
-                    {csvFile
-                      ? <p className="text-sm font-semibold text-secondary">{csvFile.name}</p>
-                      : <p className="text-sm text-on-surface-variant">Drag & drop or <span className="text-secondary underline">browse</span></p>}
-                    <p className="text-[11px] text-on-surface-variant/50 mt-1">CSV format only · max 5MB</p>
-                  </div>
-
-                  {csvStatus && (
-                    <div className={`flex items-start gap-2 px-3 py-2.5 rounded-lg border text-[13px] ${csvStatus.ok ? "bg-secondary/10 border-secondary/30 text-secondary" : "bg-error-container/10 border-error-container/30 text-error"}`}>
-                      <span className="material-symbols-outlined text-[14px] mt-0.5 shrink-0">{csvStatus.ok ? "check_circle" : "error"}</span>
-                      <span>{csvStatus.text}</span>
-                    </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">Google Sheet URL</label>
+                  <Input placeholder="https://docs.google.com/spreadsheets/d/…" value={sheetUrl} onChange={e => setSheetUrl(e.target.value)} />
+                  {sheetStatus?.sheetConfig?.lastSync && (
+                    <p className="flex items-center gap-1 text-[11px] text-on-surface-variant">
+                      <Clock size={11} strokeWidth={1.75} />
+                      Last synced: {new Date(sheetStatus.sheetConfig.lastSync).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </p>
                   )}
+                </div>
 
-                  <button
-                    onClick={handleCsvUpload}
-                    disabled={!csvFile || uploading}
-                    className="w-full flex items-center justify-center gap-2 bg-secondary text-on-secondary py-2.5 rounded-lg text-sm font-bold hover:opacity-90 disabled:opacity-40 transition-all"
-                  >
-                    {uploading
-                      ? <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
-                      : <span className="material-symbols-outlined text-[18px]">upload</span>}
-                    {uploading ? "Importing…" : "Import CSV"}
+                <StatusBanner msg={syncMsg} />
+
+                <button onClick={handleSync} disabled={syncing || !sheetUrl.trim()}
+                  className="w-full flex items-center justify-center gap-2 bg-tertiary/15 border border-tertiary/30 text-tertiary py-2 rounded-xl text-sm font-semibold hover:bg-tertiary/25 disabled:opacity-40 transition-all">
+                  {syncing ? <Loader2 size={14} strokeWidth={2} className="animate-spin" /> : <RefreshCw size={14} strokeWidth={2} />}
+                  {syncing ? "Syncing…" : "Sync Now"}
+                </button>
+
+                {sheetStatus?.connected && (
+                  <button onClick={handleDisconnect}
+                    className="w-full flex items-center justify-center gap-1.5 border border-outline-variant text-on-surface-variant py-1.5 rounded-xl text-[12px] hover:bg-surface-container transition-all">
+                    <Link2Off size={13} strokeWidth={1.75} />
+                    Disconnect Google Account
                   </button>
+                )}
+              </div>
+            </section>
 
-                  <a
-                    href="/api/sheets/template"
-                    className="flex items-center gap-2 text-[13px] text-on-surface-variant hover:text-secondary transition-colors"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">download</span>
-                    Download Sample Template (.csv)
-                  </a>
-                </div>
-              </section>
-
-              {/* Google Sheets */}
-              <section className="bg-surface-container rounded-xl border border-outline-variant overflow-hidden">
-                <div className="px-5 py-4 border-b border-outline-variant bg-surface-container-high flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-tertiary text-[20px]">sync_alt</span>
-                    <h3 className="text-sm font-bold text-on-surface">Google Sheets Sync</h3>
-                  </div>
-                  {sheetStatus?.connected && (
-                    <span className="flex items-center gap-1 text-[11px] text-secondary">
-                      <span className="w-1.5 h-1.5 rounded-full bg-secondary inline-block" />
-                      Google Connected
-                    </span>
-                  )}
-                </div>
-                <div className="p-5 space-y-4">
-
-                  {/* One-step instruction */}
-                  <div className="bg-surface-container-highest rounded-lg p-3 space-y-2.5">
-                    <p className="text-[11px] font-bold text-tertiary uppercase tracking-wider">One step before syncing</p>
-                    <div className="flex items-start gap-3 text-[13px] text-on-surface">
-                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-tertiary/20 text-tertiary text-[11px] font-bold flex items-center justify-center mt-0.5">1</span>
-                      <span>Open your Google Sheet → click <strong>Share</strong> (top-right) → set access to <strong>Anyone with the link → Viewer</strong> → click Done</span>
-                    </div>
-                    <div className="flex items-start gap-3 text-[13px] text-on-surface">
-                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-tertiary/20 text-tertiary text-[11px] font-bold flex items-center justify-center mt-0.5">2</span>
-                      <span>Paste the sheet URL below and click <strong>Sync Now</strong> — dashboard updates automatically</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 pt-1 border-t border-outline-variant/40 text-[11px] text-on-surface-variant/60">
-                      <span className="material-symbols-outlined text-[13px]">autorenew</span>
-                      Dashboard re-checks your sheet every 2 minutes for new changes
-                    </div>
-                  </div>
-
-                  {/* Sheet URL input */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">Google Sheet URL</label>
-                    <Input
-                      placeholder="https://docs.google.com/spreadsheets/d/..."
-                      value={sheetUrl}
-                      onChange={e => setSheetUrl(e.target.value)}
-                    />
-                    {sheetStatus?.sheetConfig?.lastSync && (
-                      <p className="text-[11px] text-on-surface-variant flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[12px]">schedule</span>
-                        Last synced: {new Date(sheetStatus.sheetConfig.lastSync).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                    )}
-                  </div>
-
-                  {syncMsg && (
-                    <div className={`flex items-start gap-2 px-3 py-2.5 rounded-lg border text-[13px] ${syncMsg.ok ? "bg-secondary/10 border-secondary/30 text-secondary" : "bg-error-container/10 border-error-container/30 text-error"}`}>
-                      <span className="material-symbols-outlined text-[14px] mt-0.5 shrink-0">{syncMsg.ok ? "check_circle" : "error"}</span>
-                      <span>{syncMsg.text}</span>
-                    </div>
-                  )}
-
-                  {/* Sync button */}
-                  <button
-                    onClick={handleSync}
-                    disabled={syncing || !sheetUrl.trim()}
-                    className="w-full flex items-center justify-center gap-2 bg-tertiary/20 border border-tertiary/40 text-tertiary py-2.5 rounded-lg text-sm font-bold hover:bg-tertiary/30 disabled:opacity-40 transition-all"
-                  >
-                    {syncing
-                      ? <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
-                      : <span className="material-symbols-outlined text-[18px]">sync</span>}
-                    {syncing ? "Syncing…" : "Sync Now"}
-                  </button>
-
-                  {sheetStatus?.connected && (
-                    <button
-                      onClick={handleDisconnect}
-                      className="w-full flex items-center justify-center gap-2 border border-outline-variant text-on-surface-variant py-2 rounded-lg text-sm hover:bg-surface-container-high transition-all"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">link_off</span>
-                      Disconnect Google Account
-                    </button>
-                  )}
-                </div>
-              </section>
-
-              {/* Guidelines */}
-              <section className="bg-surface-container rounded-xl border border-outline-variant p-5 space-y-3">
-                <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold">Entry Guidelines</p>
-                <ul className="space-y-2">
-                  {[
-                    "Spend values must be in ₹ (INR).",
-                    "Ad IDs must be unique — duplicates overwrite existing records.",
-                    "Only ad_id and brand are mandatory. All other matching columns are imported automatically.",
-                    "Performance metrics (ROAS, CTR, etc.) default to 0 and will be classified as TESTING until updated.",
-                    "Ads appear in the Analytics dashboard after import.",
-                  ].map(tip => (
-                    <li key={tip} className="flex gap-2 text-[13px] text-on-surface">
-                      <span className="material-symbols-outlined text-secondary text-[16px] mt-0.5 shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                      {tip}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            </div>
+            {/* Entry Guidelines — compact */}
+            <section className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-4 shadow-card">
+              <p className="text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold mb-2">Entry Guidelines</p>
+              <ul className="space-y-1.5">
+                {[
+                  "Spend values in ₹ (INR).",
+                  "Ad IDs must be unique — duplicates overwrite existing records.",
+                  "Only ad_id and brand are mandatory.",
+                  "New ads default to TESTING until metrics are updated.",
+                  "Ads appear in Analytics dashboard after import.",
+                ].map(tip => (
+                  <li key={tip} className="flex items-start gap-2 text-[12px] text-on-surface-variant">
+                    <CheckCircle2 size={12} strokeWidth={2} className="text-secondary shrink-0 mt-0.5" />
+                    {tip}
+                  </li>
+                ))}
+              </ul>
+            </section>
           </div>
+
         </div>
       </div>
     </div>

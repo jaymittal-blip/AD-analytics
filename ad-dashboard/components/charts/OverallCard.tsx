@@ -31,14 +31,14 @@ export default function OverallCard({ ads, label }: Props) {
         {metrics.map(({ label: l, value }) => (
           <div key={l}>
             <p className="text-[10px] opacity-60 mb-0.5">{l}</p>
-            <p className="text-base font-bold leading-tight">{value}</p>
+            <p className="text-[15px] font-extrabold leading-tight tracking-tight">{value}</p>
           </div>
         ))}
       </div>
 
       <div className="border-t border-white/20 pt-3">
         <p className="text-[10px] opacity-60 mb-0.5">Ads in Category</p>
-        <p className="text-2xl font-bold">{ads.length}</p>
+        <p className="text-3xl font-extrabold tracking-tight">{ads.length}</p>
       </div>
     </div>
   );

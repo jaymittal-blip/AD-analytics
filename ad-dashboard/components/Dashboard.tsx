@@ -215,7 +215,7 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
       {/* Top App Bar */}
       <header className="flex items-center gap-4 h-16 px-6 bg-surface-container-lowest border-b border-outline-variant shrink-0 no-print">
         <div>
-          <h2 className="text-sm font-bold text-on-surface leading-tight">Ad Performance</h2>
+          <h2 className="text-sm font-extrabold text-on-surface leading-tight tracking-tight">Ad Performance</h2>
           <p className="text-[10px] text-on-surface-variant">{ads.length} ads · {fetchedDate}</p>
         </div>
 
@@ -257,7 +257,7 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
                 onClick={() => setActiveTab(id)}
                 className={`relative px-4 py-2.5 text-sm transition-colors whitespace-nowrap ${
                   active
-                    ? `font-semibold ${color} border-b-2 border-current -mb-px`
+                    ? `font-bold ${color} border-b-2 border-current -mb-px`
                     : "text-on-surface-variant hover:text-on-surface"
                 }`}
               >
@@ -290,7 +290,7 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
         {/* Table card */}
         <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl overflow-hidden shadow-card">
           <div className="flex justify-between items-center px-6 py-4 border-b border-outline-variant">
-            <h3 className="text-sm font-semibold text-on-surface">{tableHeader}</h3>
+            <h3 className="text-sm font-bold text-on-surface tracking-tight">{tableHeader}</h3>
             <div className="flex items-center gap-3 no-print">
               <span className="text-[11px] text-on-surface-variant hidden sm:block">Sorted by spend · highest first</span>
               <button onClick={exportCsv}
