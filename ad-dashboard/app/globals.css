@@ -3,31 +3,18 @@
 @tailwind utilities;
 
 html, body {
-  background-color: #131313;
-  color: #e5e2e1;
-  font-family: 'Inter', sans-serif;
-}
-
-.material-symbols-outlined {
-  font-family: 'Material Symbols Outlined';
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-  font-style: normal;
-  line-height: 1;
-  display: inline-block;
-  white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
-  -webkit-font-smoothing: antialiased;
-  user-select: none;
+  background-color: #F0EDE4;
+  color: #1A2E20;
+  font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: #1A1A1A; }
-::-webkit-scrollbar-thumb { background: #353534; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #5b403e; }
+::-webkit-scrollbar-track { background: #EDE9DF; }
+::-webkit-scrollbar-thumb { background: #C8C2B4; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #A09888; }
 
 @media print {
   aside, .no-print { display: none !important; }

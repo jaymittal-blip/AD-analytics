@@ -9,57 +9,53 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        "background":                "#131313",
-        "surface":                   "#131313",
-        "surface-dim":               "#131313",
-        "surface-bright":            "#3a3939",
-        "surface-container-lowest":  "#0e0e0e",
-        "surface-container-low":     "#1c1b1b",
-        "surface-container":         "#201f1f",
-        "surface-container-high":    "#2a2a2a",
-        "surface-container-highest": "#353534",
-        "surface-variant":           "#353534",
-        "on-surface":                "#e5e2e1",
-        "on-surface-variant":        "#e4beba",
-        "on-background":             "#e5e2e1",
-        "primary":                   "#ffb3ad",
-        "primary-container":         "#ff5451",
-        "on-primary":                "#68000a",
-        "on-primary-container":      "#5c0008",
-        "secondary":                 "#4ae176",
-        "secondary-container":       "#00b954",
-        "on-secondary":              "#003915",
-        "on-secondary-container":    "#004119",
-        "tertiary":                  "#adc6ff",
-        "tertiary-container":        "#4d8eff",
-        "on-tertiary":               "#002e6a",
-        "on-tertiary-container":     "#00285d",
-        "error":                     "#ffb4ab",
-        "error-container":           "#93000a",
-        "on-error":                  "#690005",
-        "on-error-container":        "#ffdad6",
-        "outline":                   "#ab8986",
-        "outline-variant":           "#5b403e",
-        "inverse-surface":           "#e5e2e1",
-        "inverse-on-surface":        "#313030",
-        // Legacy dash-* aliases
-        dash: {
-          bg:     "#131313",
-          surface:"#1A1A1A",
-          raised: "#201f1f",
-          border: "#262626",
-          text:   "#e5e2e1",
-          muted:  "#e4beba",
-          kill:   "#ff5451",
-          scale:  "#4ae176",
-          watch:  "#adc6ff",
-          test:   "#ffa502",
-          ended:  "#57606f",
-        },
+        // Little Joys warm organic palette
+        "background":                "#F0EDE4",
+        "surface":                   "#FAFAF7",
+        "surface-dim":               "#EDE9DF",
+        "surface-bright":            "#FFFFFF",
+        "surface-container-lowest":  "#FFFFFF",
+        "surface-container-low":     "#F7F4EE",
+        "surface-container":         "#EDE9DF",
+        "surface-container-high":    "#E4DFCF",
+        "surface-container-highest": "#D8D3C5",
+        "surface-variant":           "#E0DBD0",
+        "on-surface":                "#1A2E20",  // dark forest-green text
+        "on-surface-variant":        "#5A6E5C",  // muted forest green
+        "on-background":             "#1A2E20",
+
+        "primary":                   "#2D4032",  // dark forest green (icon color)
+        "primary-container":         "#4A6B50",  // medium green
+        "on-primary":                "#FFFFFF",
+        "on-primary-container":      "#FFFFFF",
+
+        "secondary":                 "#3D7A52",  // scale / success green
+        "secondary-container":       "#C8E6D4",
+        "on-secondary":              "#FFFFFF",
+        "on-secondary-container":    "#1C3D2A",
+
+        "tertiary":                  "#B87830",  // amber / monitor
+        "tertiary-container":        "#F5E0B8",
+        "on-tertiary":               "#FFFFFF",
+        "on-tertiary-container":     "#4A2E00",
+
+        "error":                     "#C0503A",  // terracotta / kill
+        "error-container":           "#F5CFC7",
+        "on-error":                  "#FFFFFF",
+        "on-error-container":        "#3D0A00",
+
+        "outline":                   "#A09888",
+        "outline-variant":           "#D4CEC0",
+        "inverse-surface":           "#2D2820",
+        "inverse-on-surface":        "#F0EDE4",
       },
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
-        mono: ["JetBrains Mono", "monospace"],
+        sans: ["'Plus Jakarta Sans'", "sans-serif"],
+        mono: ["'JetBrains Mono'", "monospace"],
+      },
+      boxShadow: {
+        card:  "0 1px 3px rgba(45,64,50,0.06), 0 4px 12px rgba(45,64,50,0.06)",
+        float: "0 4px 20px rgba(45,64,50,0.12)",
       },
     },
   },

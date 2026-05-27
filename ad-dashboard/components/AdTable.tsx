@@ -12,6 +12,12 @@ import {
   SCALE_SUGGESTION_INFO, OUTLOOK_INFO,
   ScaleSuggestion, OutlookResult,
 } from "@/lib/suggestions";
+import {
+  ArrowDown, ArrowUp, ChevronsUpDown,
+  Info, CheckCircle2, AlertTriangle,
+  TrendingUp, TrendingDown, HelpCircle,
+  Download, Columns, ChevronLeft, ChevronRight,
+} from "lucide-react";
 
 type SortKey =
   | "spend" | "roas" | "days_running" | "revenue" | "ctr"
@@ -24,32 +30,32 @@ type SortDir = "asc" | "desc";
 const PAGE_SIZE = 15;
 
 const ALL_COLUMNS = [
-  { key: "ad_id",                 label: "AD ID",                  align: "left",  sortKey: null                    },
-  { key: "_class",                label: "Action",                 align: "left",  sortKey: null                    },
-  { key: "platform",              label: "Platform",               align: "left",  sortKey: null                    },
-  { key: "brand",                 label: "Brand",                  align: "left",  sortKey: null                    },
-  { key: "category",              label: "Category",               align: "left",  sortKey: null                    },
-  { key: "ad_type",               label: "Ad Type",                align: "left",  sortKey: null                    },
-  { key: "target_audience",       label: "Audience",               align: "left",  sortKey: null                    },
-  { key: "creative_theme",        label: "Creative Theme",         align: "left",  sortKey: null                    },
-  { key: "status",                label: "Status",                 align: "left",  sortKey: null                    },
-  { key: "start_date",            label: "Start Date",             align: "left",  sortKey: null                    },
-  { key: "days_running",          label: "Days",                   align: "right", sortKey: "days_running"          },
-  { key: "spend",                 label: "Spend",                  align: "right", sortKey: "spend"                 },
-  { key: "revenue",               label: "Revenue",                align: "right", sortKey: "revenue"               },
-  { key: "roas",                  label: "ROAS",                   align: "right", sortKey: "roas"                  },
-  { key: "impressions",           label: "Impressions",            align: "right", sortKey: "impressions"           },
-  { key: "clicks",                label: "Clicks",                 align: "right", sortKey: "clicks"                },
-  { key: "ctr",                   label: "CTR",                    align: "right", sortKey: "ctr"                   },
-  { key: "conversions",           label: "Conversions",            align: "right", sortKey: "conversions"           },
-  { key: "cpc",                   label: "CPC",                    align: "right", sortKey: "cpc"                   },
-  { key: "cpa",                   label: "CPA",                    align: "right", sortKey: "cpa"                   },
-  { key: "creative_score",        label: "Creative Score",         align: "right", sortKey: "creative_score"        },
-  { key: "landing_page_score",    label: "Landing Page Score",     align: "right", sortKey: "landing_page_score"    },
-  { key: "frequency",             label: "Frequency",              align: "right", sortKey: "frequency"             },
-  { key: "video_completion_rate", label: "Video Completion Rate",  align: "right", sortKey: "video_completion_rate" },
-  { key: "product_name",          label: "Product Name",           align: "left",  sortKey: null                    },
-  { key: "landing_page",          label: "Landing Page",           align: "left",  sortKey: null                    },
+  { key: "ad_id",                 label: "AD ID",               align: "left",  sortKey: null                    },
+  { key: "_class",                label: "Action",              align: "left",  sortKey: null                    },
+  { key: "platform",              label: "Platform",            align: "left",  sortKey: null                    },
+  { key: "brand",                 label: "Brand",               align: "left",  sortKey: null                    },
+  { key: "category",              label: "Category",            align: "left",  sortKey: null                    },
+  { key: "ad_type",               label: "Ad Type",             align: "left",  sortKey: null                    },
+  { key: "target_audience",       label: "Audience",            align: "left",  sortKey: null                    },
+  { key: "creative_theme",        label: "Creative Theme",      align: "left",  sortKey: null                    },
+  { key: "status",                label: "Status",              align: "left",  sortKey: null                    },
+  { key: "start_date",            label: "Start Date",          align: "left",  sortKey: null                    },
+  { key: "days_running",          label: "Days",                align: "right", sortKey: "days_running"          },
+  { key: "spend",                 label: "Spend",               align: "right", sortKey: "spend"                 },
+  { key: "revenue",               label: "Revenue",             align: "right", sortKey: "revenue"               },
+  { key: "roas",                  label: "ROAS",                align: "right", sortKey: "roas"                  },
+  { key: "impressions",           label: "Impressions",         align: "right", sortKey: "impressions"           },
+  { key: "clicks",                label: "Clicks",              align: "right", sortKey: "clicks"                },
+  { key: "ctr",                   label: "CTR",                 align: "right", sortKey: "ctr"                   },
+  { key: "conversions",           label: "Conversions",         align: "right", sortKey: "conversions"           },
+  { key: "cpc",                   label: "CPC",                 align: "right", sortKey: "cpc"                   },
+  { key: "cpa",                   label: "CPA",                 align: "right", sortKey: "cpa"                   },
+  { key: "creative_score",        label: "Creative Score",      align: "right", sortKey: "creative_score"        },
+  { key: "landing_page_score",    label: "LP Score",            align: "right", sortKey: "landing_page_score"    },
+  { key: "frequency",             label: "Frequency",           align: "right", sortKey: "frequency"             },
+  { key: "video_completion_rate", label: "Video CR",            align: "right", sortKey: "video_completion_rate" },
+  { key: "product_name",          label: "Product",             align: "left",  sortKey: null                    },
+  { key: "landing_page",          label: "Landing Page",        align: "left",  sortKey: null                    },
 ] as const;
 
 type ColKey = (typeof ALL_COLUMNS)[number]["key"];
@@ -65,15 +71,15 @@ interface Props {
 
 const CONFIDENCE_DOT: Record<string, string> = {
   high:   "bg-secondary",
-  medium: "bg-primary-container",
-  low:    "bg-on-surface-variant/40",
+  medium: "bg-tertiary",
+  low:    "bg-outline/60",
 };
 
 function InfoTooltip({ text }: { text: string }) {
   return (
     <span className="relative inline-flex group align-middle ml-1">
-      <span className="material-symbols-outlined text-[13px] text-on-surface-variant/50 cursor-help leading-none">info</span>
-      <span className="pointer-events-none absolute top-full left-0 mt-1 w-64 rounded-xl bg-surface-container-highest border border-outline-variant shadow-xl p-3 text-[11px] text-on-surface-variant leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-normal font-normal normal-case tracking-normal">
+      <Info size={12} strokeWidth={1.75} className="text-on-surface-variant/50 cursor-help" />
+      <span className="pointer-events-none absolute top-full left-0 mt-1 w-64 rounded-xl bg-surface-bright border border-outline-variant shadow-float p-3 text-[11px] text-on-surface-variant leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-normal font-normal normal-case tracking-normal">
         {text}
       </span>
     </span>
@@ -83,15 +89,15 @@ function InfoTooltip({ text }: { text: string }) {
 function SuggestionTooltip({ reasons, warnings }: { reasons: string[]; warnings: string[] }) {
   if (!reasons.length && !warnings.length) return null;
   return (
-    <span className="pointer-events-none absolute top-0 right-full mr-2 w-72 rounded-xl bg-surface-container-highest border border-outline-variant shadow-xl p-3 z-50 opacity-0 group-hover:opacity-100 transition-opacity">
+    <span className="pointer-events-none absolute top-0 right-full mr-2 w-72 rounded-xl bg-surface-bright border border-outline-variant shadow-float p-3 z-50 opacity-0 group-hover:opacity-100 transition-opacity">
       {reasons.map((r, i) => (
         <p key={i} className="flex items-start gap-1.5 text-[11px] text-secondary mb-1">
-          <span className="material-symbols-outlined text-[12px] shrink-0 mt-px">check_circle</span>{r}
+          <CheckCircle2 size={12} strokeWidth={1.75} className="shrink-0 mt-px" />{r}
         </p>
       ))}
       {warnings.map((w, i) => (
-        <p key={i} className="flex items-start gap-1.5 text-[11px] text-primary-container mb-1">
-          <span className="material-symbols-outlined text-[12px] shrink-0 mt-px">warning</span>{w}
+        <p key={i} className="flex items-start gap-1.5 text-[11px] text-tertiary mb-1">
+          <AlertTriangle size={12} strokeWidth={1.75} className="shrink-0 mt-px" />{w}
         </p>
       ))}
     </span>
@@ -108,7 +114,6 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
     () => new Set(settings.visibleColumns as ColKey[])
   );
 
-  // Keep visible in sync when settings change (e.g. after visiting Settings page)
   useMemo(() => {
     setVisible(new Set(settings.visibleColumns as ColKey[]));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -131,7 +136,6 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
 
   const showSuggestion = tab === "scale" || tab === "monitor" || tab === "testing";
 
-  // Pre-compute suggestions before sorted so sort-by-suggestion works
   const suggestionMap = useMemo(() => {
     if (!showSuggestion) return new Map<string, ScaleSuggestion | OutlookResult>();
     const map = new Map<string, ScaleSuggestion | OutlookResult>();
@@ -173,21 +177,21 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
   const showCols   = ALL_COLUMNS.filter(c => visible.has(c.key));
 
   function roasColor(roas: number) {
-    if (roas < THRESHOLDS.ROAS_KILL)   return "text-primary-container";
-    if (roas >= THRESHOLDS.ROAS_SCALE) return "text-secondary";
+    if (roas < THRESHOLDS.ROAS_KILL)   return "text-error font-bold";
+    if (roas >= THRESHOLDS.ROAS_SCALE) return "text-secondary font-bold";
     return "text-on-surface";
   }
 
   function renderCell(ad: Ad, key: ColKey) {
     switch (key) {
       case "ad_id":
-        return <span className="font-mono text-[12px] text-on-surface-variant whitespace-nowrap">{ad.ad_id}</span>;
+        return <span className="font-mono text-[11px] text-on-surface-variant whitespace-nowrap">{ad.ad_id}</span>;
       case "_class":
         return <Badge cls={ad._class} />;
       case "platform":
-        return <span className="text-sm">{ad.platform}</span>;
+        return <span className="text-sm font-medium">{ad.platform}</span>;
       case "brand":
-        return <span className="text-sm">{ad.brand}</span>;
+        return <span className="text-sm font-medium">{ad.brand}</span>;
       case "category":
         return <span className="text-sm text-on-surface-variant">{ad.category}</span>;
       case "ad_type":
@@ -199,15 +203,15 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
       case "status":
         return <span className="text-xs text-on-surface-variant whitespace-nowrap">{ad.status}</span>;
       case "start_date":
-        return <span className="font-mono text-[12px] text-on-surface-variant whitespace-nowrap">{ad.start_date}</span>;
+        return <span className="font-mono text-[11px] text-on-surface-variant whitespace-nowrap">{ad.start_date}</span>;
       case "days_running":
         return <span className="font-mono text-sm">{ad.days_running}</span>;
       case "spend":
-        return <span className="font-mono text-sm font-bold">{fmtINR(ad.spend)}</span>;
+        return <span className="font-mono text-sm font-semibold">{fmtINR(ad.spend)}</span>;
       case "revenue":
         return <span className="font-mono text-sm text-on-surface-variant">{fmtINR(ad.revenue)}</span>;
       case "roas":
-        return <span className={`font-mono text-sm font-bold ${roasColor(ad.roas)}`}>{fmtRoas(ad.roas)}</span>;
+        return <span className={`font-mono text-sm ${roasColor(ad.roas)}`}>{fmtRoas(ad.roas)}</span>;
       case "impressions":
         return <span className="font-mono text-sm text-on-surface-variant">{fmtNumber(ad.impressions)}</span>;
       case "clicks":
@@ -237,50 +241,54 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
     }
   }
 
+  function SortIcon({ colSortKey }: { colSortKey: string }) {
+    if (sortKey === colSortKey) {
+      return sortDir === "desc"
+        ? <ArrowDown size={11} strokeWidth={2} className="inline ml-0.5 align-middle text-primary" />
+        : <ArrowUp   size={11} strokeWidth={2} className="inline ml-0.5 align-middle text-primary" />;
+    }
+    return <ChevronsUpDown size={11} strokeWidth={1.75} className="inline ml-0.5 align-middle text-on-surface-variant/40" />;
+  }
+
   return (
     <div>
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-surface-container-low text-on-surface-variant text-[11px] uppercase tracking-wider">
+            <tr className="bg-surface-container text-on-surface-variant text-[11px] uppercase tracking-wider">
               {showCols.map(col => (
                 <th
                   key={col.key}
-                  className={`px-5 py-3.5 font-semibold whitespace-nowrap ${col.align === "right" ? "text-right" : ""} ${col.sortKey ? "cursor-pointer hover:text-on-surface select-none" : ""}`}
+                  className={`px-5 py-3 font-semibold whitespace-nowrap ${col.align === "right" ? "text-right" : ""} ${col.sortKey ? "cursor-pointer hover:text-on-surface select-none" : ""}`}
                   onClick={col.sortKey ? () => toggleSort(col.sortKey as SortKey) : undefined}
                 >
                   {col.label}
-                  {col.sortKey && (
-                    sortKey === col.sortKey
-                      ? <span className="material-symbols-outlined text-[12px] align-middle ml-0.5 text-primary">{sortDir === "desc" ? "arrow_downward" : "arrow_upward"}</span>
-                      : <span className="material-symbols-outlined text-[12px] align-middle ml-0.5 text-on-surface-variant/50">unfold_more</span>
-                  )}
+                  {col.sortKey && <SortIcon colSortKey={col.sortKey} />}
                 </th>
               ))}
               {showSuggestion && (
                 <th
-                  className="px-5 py-3.5 font-semibold whitespace-nowrap text-left cursor-pointer hover:text-on-surface select-none"
+                  className="px-5 py-3 font-semibold whitespace-nowrap text-left cursor-pointer hover:text-on-surface select-none"
                   onClick={() => toggleSort("suggestion")}
                 >
-                  {tab === "scale" ? "Scale Suggestion" : "Outlook"}
-                  {sortKey === "suggestion"
-                    ? <span className="material-symbols-outlined text-[12px] align-middle ml-0.5 text-primary">{sortDir === "desc" ? "arrow_downward" : "arrow_upward"}</span>
-                    : <span className="material-symbols-outlined text-[12px] align-middle ml-0.5 text-on-surface-variant/50">unfold_more</span>
-                  }
+                  <span className="inline-flex items-center gap-0.5">
+                    {tab === "scale" ? "Scale Suggestion" : "Outlook"}
+                    <SortIcon colSortKey="suggestion" />
+                  </span>
                   <InfoTooltip text={tab === "scale" ? SCALE_SUGGESTION_INFO : OUTLOOK_INFO} />
                 </th>
               )}
             </tr>
           </thead>
-          <tbody className="divide-y divide-surface-variant">
+          <tbody className="divide-y divide-outline-variant/40">
             {pageAds.length === 0 ? (
               <tr>
                 <td colSpan={showCols.length + (showSuggestion ? 1 : 0)} className="text-center text-on-surface-variant py-14 text-sm">
                   {emptyMessage}
                 </td>
               </tr>
-            ) : pageAds.map(ad => (
-              <tr key={ad.ad_id} className="hover:bg-surface-container transition-colors">
+            ) : pageAds.map((ad, idx) => (
+              <tr key={ad.ad_id} className={`transition-colors hover:bg-surface-container-low ${idx % 2 === 0 ? "" : "bg-surface-container-lowest/50"}`}>
                 {showCols.map(col => (
                   <td
                     key={col.key}
@@ -308,15 +316,15 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
                   }
                   const ol = s as OutlookResult;
                   const verdictCfg = ol.verdict === "LIKELY_SCALE"
-                    ? { label: "Likely Scale", icon: "trending_up",   cls: "text-secondary" }
+                    ? { label: "Likely Scale", Icon: TrendingUp,   cls: "text-secondary" }
                     : ol.verdict === "LIKELY_KILL"
-                    ? { label: "Likely Kill",  icon: "trending_down", cls: "text-primary-container" }
-                    : { label: "Uncertain",    icon: "help",          cls: "text-on-surface-variant" };
+                    ? { label: "Likely Kill",  Icon: TrendingDown, cls: "text-error" }
+                    : { label: "Uncertain",    Icon: HelpCircle,   cls: "text-on-surface-variant" };
                   return (
                     <td className="px-5 py-3">
                       <div className="relative group inline-flex flex-col gap-0.5 cursor-default">
                         <div className="flex items-center gap-1.5">
-                          <span className={`material-symbols-outlined text-[16px] ${verdictCfg.cls}`} style={{ fontVariationSettings: "'FILL' 1" }}>{verdictCfg.icon}</span>
+                          <verdictCfg.Icon size={15} strokeWidth={1.75} className={verdictCfg.cls} />
                           <span className={`text-sm font-semibold ${verdictCfg.cls}`}>{verdictCfg.label}</span>
                           <span className={`w-2 h-2 rounded-full shrink-0 ${CONFIDENCE_DOT[ol.confidence]}`} title={`${ol.confidence} confidence`} />
                         </div>
@@ -332,7 +340,7 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
       </div>
 
       {/* Footer */}
-      <div className="px-5 py-3 border-t border-surface-variant bg-surface-container-low flex items-center justify-between flex-wrap gap-2">
+      <div className="px-5 py-3 border-t border-outline-variant bg-surface-container-low flex items-center justify-between flex-wrap gap-2">
         <span className="text-[11px] text-on-surface-variant">
           {sorted.length === 0
             ? "0 ads"
@@ -344,24 +352,24 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
           <div className="relative">
             <button
               onClick={() => setColsOpen(!colsOpen)}
-              className="flex items-center gap-1 text-[11px] text-on-surface-variant border border-outline-variant px-2.5 py-1.5 rounded-lg hover:bg-surface-container-high transition-colors"
+              className="flex items-center gap-1.5 text-[11px] text-on-surface-variant border border-outline-variant px-2.5 py-1.5 rounded-lg hover:bg-surface-container transition-colors"
             >
-              <span className="material-symbols-outlined text-[16px]">view_column</span>
+              <Columns size={13} strokeWidth={1.75} />
               Columns
             </button>
             {colsOpen && (
-              <div className="absolute bottom-full right-0 mb-1 z-50 bg-surface-container-high border border-outline-variant rounded-xl shadow-xl p-3 min-w-[200px] max-h-[340px] overflow-y-auto">
+              <div className="absolute bottom-full right-0 mb-1 z-50 bg-surface-bright border border-outline-variant rounded-xl shadow-float p-3 min-w-[200px] max-h-[340px] overflow-y-auto">
                 <p className="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2 px-1">Toggle Columns</p>
                 {ALL_COLUMNS.map(col => (
                   <label
                     key={col.key}
-                    className={`flex items-center gap-2 px-1 py-1 rounded ${ALWAYS_ON.has(col.key) ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:bg-surface-container-highest"}`}
+                    className={`flex items-center gap-2 px-1 py-1 rounded-lg ${ALWAYS_ON.has(col.key) ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:bg-surface-container"}`}
                   >
                     <input
                       type="checkbox"
                       checked={visible.has(col.key)}
                       onChange={() => toggleCol(col.key)}
-                      className="accent-primary-container"
+                      className="accent-primary"
                       disabled={ALWAYS_ON.has(col.key)}
                     />
                     <span className="text-sm text-on-surface">{col.label}</span>
@@ -375,17 +383,17 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
           <button
             disabled={page === 1}
             onClick={() => setPage(p => p - 1)}
-            className="p-1 border border-outline-variant rounded hover:bg-surface-container disabled:opacity-30 transition-colors"
+            className="p-1.5 border border-outline-variant rounded-lg hover:bg-surface-container disabled:opacity-30 transition-colors"
           >
-            <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+            <ChevronLeft size={15} strokeWidth={1.75} />
           </button>
           <span className="text-[11px] text-on-surface-variant px-1">{page} / {totalPages}</span>
           <button
             disabled={page >= totalPages}
             onClick={() => setPage(p => p + 1)}
-            className="p-1 border border-outline-variant rounded hover:bg-surface-container disabled:opacity-30 transition-colors"
+            className="p-1.5 border border-outline-variant rounded-lg hover:bg-surface-container disabled:opacity-30 transition-colors"
           >
-            <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+            <ChevronRight size={15} strokeWidth={1.75} />
           </button>
         </div>
       </div>

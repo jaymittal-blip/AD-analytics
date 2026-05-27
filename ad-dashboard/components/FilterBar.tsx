@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { Calendar, ChevronDown, X } from "lucide-react";
 
 export interface Filters {
   search:     string;
@@ -34,22 +35,22 @@ interface DropdownProps {
   onToggle: () => void;
   children: React.ReactNode;
   containerRef: React.RefObject<HTMLDivElement>;
-  icon?: string;
+  showCalendar?: boolean;
 }
 
-function Dropdown({ label, open, onToggle, children, containerRef, icon }: DropdownProps) {
+function Dropdown({ label, open, onToggle, children, containerRef, showCalendar }: DropdownProps) {
   return (
     <div className="relative" ref={containerRef}>
       <button
         onClick={onToggle}
         className="flex items-center gap-1.5 bg-surface-container-lowest border border-outline-variant px-3 py-1.5 rounded-lg text-sm text-on-surface cursor-pointer hover:border-outline transition-colors select-none"
       >
-        {icon && <span className="material-symbols-outlined text-on-surface-variant text-[18px]">{icon}</span>}
+        {showCalendar && <Calendar size={14} strokeWidth={1.75} className="text-on-surface-variant" />}
         <span className="max-w-[140px] truncate">{label}</span>
-        <span className="material-symbols-outlined text-on-surface-variant text-[16px]">expand_more</span>
+        <ChevronDown size={14} strokeWidth={1.75} className="text-on-surface-variant" />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 z-50 bg-surface-container-high border border-outline-variant rounded-xl shadow-xl min-w-[180px]">
+        <div className="absolute top-full left-0 mt-1 z-50 bg-surface-bright border border-outline-variant rounded-xl shadow-float min-w-[180px]">
           {children}
         </div>
       )}
@@ -62,7 +63,7 @@ interface Props {
   platforms: string[];
   brands:    string[];
   themes:    string[];
-  maxDate:   Date;   // most recent start_date in the dataset — presets are relative to this
+  maxDate:   Date;
   onChange:  (f: Filters) => void;
 }
 
@@ -93,7 +94,6 @@ export default function FilterBar({ filters, platforms, brands, themes, maxDate,
       onChange({ ...filters, dateFrom: "", dateTo: "", datePreset: "All Time" });
       setDateOpen(false);
     } else if (days > 0) {
-      // Use dataset's latest date so presets work on historical data
       const to   = new Date(maxDate);
       const from = new Date(maxDate);
       from.setDate(from.getDate() - days);
@@ -112,11 +112,11 @@ export default function FilterBar({ filters, platforms, brands, themes, maxDate,
 
   const optionCls = (active: boolean) =>
     `w-full text-left px-4 py-2 text-sm transition-colors ${
-      active ? "text-primary bg-primary-container/10" : "text-on-surface hover:bg-surface-container-highest"
+      active ? "text-primary font-semibold bg-primary/5" : "text-on-surface hover:bg-surface-container"
     }`;
 
   return (
-    <div className="flex flex-wrap gap-2 items-center p-3 bg-surface-container rounded-xl">
+    <div className="flex flex-wrap gap-2 items-center px-3 py-2.5 bg-surface-container-lowest border border-outline-variant rounded-xl">
 
       {/* Date */}
       <Dropdown
@@ -124,15 +124,11 @@ export default function FilterBar({ filters, platforms, brands, themes, maxDate,
         open={dateOpen}
         onToggle={() => setDateOpen(!dateOpen)}
         containerRef={dateRef}
-        icon="calendar_month"
+        showCalendar
       >
         <div className="py-1">
           {PRESETS.map(({ label, days }) => (
-            <button
-              key={label}
-              onClick={() => applyPreset(days, label)}
-              className={optionCls(filters.datePreset === label)}
-            >
+            <button key={label} onClick={() => applyPreset(days, label)} className={optionCls(filters.datePreset === label)}>
               {label}
             </button>
           ))}
@@ -141,26 +137,16 @@ export default function FilterBar({ filters, platforms, brands, themes, maxDate,
           <div className="border-t border-outline-variant px-3 py-3 space-y-2">
             <div>
               <label className="text-[10px] uppercase tracking-widest text-on-surface-variant block mb-1">From</label>
-              <input
-                type="date"
-                value={filters.dateFrom}
-                onChange={e => onChange({ ...filters, dateFrom: e.target.value })}
-                className="w-full bg-surface-container-lowest border border-outline-variant rounded px-2 py-1 text-sm text-on-surface focus:outline-none focus:border-primary"
-              />
+              <input type="date" value={filters.dateFrom} onChange={e => onChange({ ...filters, dateFrom: e.target.value })}
+                className="w-full bg-surface-container border border-outline-variant rounded-lg px-2 py-1 text-sm text-on-surface focus:outline-none focus:border-primary" />
             </div>
             <div>
               <label className="text-[10px] uppercase tracking-widest text-on-surface-variant block mb-1">To</label>
-              <input
-                type="date"
-                value={filters.dateTo}
-                onChange={e => onChange({ ...filters, dateTo: e.target.value })}
-                className="w-full bg-surface-container-lowest border border-outline-variant rounded px-2 py-1 text-sm text-on-surface focus:outline-none focus:border-primary"
-              />
+              <input type="date" value={filters.dateTo} onChange={e => onChange({ ...filters, dateTo: e.target.value })}
+                className="w-full bg-surface-container border border-outline-variant rounded-lg px-2 py-1 text-sm text-on-surface focus:outline-none focus:border-primary" />
             </div>
-            <button
-              onClick={() => setDateOpen(false)}
-              className="w-full py-1.5 bg-primary-container text-on-primary-container text-xs font-bold rounded"
-            >
+            <button onClick={() => setDateOpen(false)}
+              className="w-full py-1.5 bg-primary text-on-primary text-xs font-bold rounded-lg">
               Apply
             </button>
           </div>
@@ -168,12 +154,7 @@ export default function FilterBar({ filters, platforms, brands, themes, maxDate,
       </Dropdown>
 
       {/* Platform */}
-      <Dropdown
-        label={filters.platform || "All Platforms"}
-        open={platformOpen}
-        onToggle={() => setPlatformOpen(!platformOpen)}
-        containerRef={platformRef}
-      >
+      <Dropdown label={filters.platform || "All Platforms"} open={platformOpen} onToggle={() => setPlatformOpen(!platformOpen)} containerRef={platformRef}>
         <div className="py-1">
           {["", ...platforms].map((p) => (
             <button key={p || "__all__"} onClick={() => { onChange({ ...filters, platform: p }); setPlatformOpen(false); }} className={optionCls(filters.platform === p)}>
@@ -184,12 +165,7 @@ export default function FilterBar({ filters, platforms, brands, themes, maxDate,
       </Dropdown>
 
       {/* Brand */}
-      <Dropdown
-        label={filters.brand || "All Brands"}
-        open={brandOpen}
-        onToggle={() => setBrandOpen(!brandOpen)}
-        containerRef={brandRef}
-      >
+      <Dropdown label={filters.brand || "All Brands"} open={brandOpen} onToggle={() => setBrandOpen(!brandOpen)} containerRef={brandRef}>
         <div className="py-1 max-h-56 overflow-y-auto">
           {["", ...brands].map((b) => (
             <button key={b || "__all__"} onClick={() => { onChange({ ...filters, brand: b }); setBrandOpen(false); }} className={optionCls(filters.brand === b)}>
@@ -200,12 +176,7 @@ export default function FilterBar({ filters, platforms, brands, themes, maxDate,
       </Dropdown>
 
       {/* Theme */}
-      <Dropdown
-        label={filters.theme || "All Themes"}
-        open={themeOpen}
-        onToggle={() => setThemeOpen(!themeOpen)}
-        containerRef={themeRef}
-      >
+      <Dropdown label={filters.theme || "All Themes"} open={themeOpen} onToggle={() => setThemeOpen(!themeOpen)} containerRef={themeRef}>
         <div className="py-1 max-h-56 overflow-y-auto">
           {["", ...themes].map((t) => (
             <button key={t || "__all__"} onClick={() => { onChange({ ...filters, theme: t }); setThemeOpen(false); }} className={optionCls(filters.theme === t)}>
@@ -216,8 +187,9 @@ export default function FilterBar({ filters, platforms, brands, themes, maxDate,
       </Dropdown>
 
       {hasFilter && (
-        <button onClick={clear} className="text-on-surface-variant text-[11px] font-semibold px-2 hover:text-on-surface transition-colors uppercase tracking-wider">
-          Clear Filters
+        <button onClick={clear} className="flex items-center gap-1 text-on-surface-variant text-[11px] font-semibold px-2 hover:text-error transition-colors">
+          <X size={12} strokeWidth={2} />
+          Clear
         </button>
       )}
     </div>

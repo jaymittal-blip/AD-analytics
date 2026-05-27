@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { fmtINR } from "@/lib/format";
 
-const COLORS = ["#ff5451", "#ffb3ad", "#4ae176", "#adc6ff", "#ffa502", "#00b954"];
+// Earthy, organic palette matching Little Joys brand
+const COLORS = ["#2D4032", "#4A6B50", "#B87830", "#C0503A", "#5B7A8C", "#8C6B3A"];
 
 interface Props {
   title: string;
@@ -39,16 +40,13 @@ export default function DonutChart({ title, rows }: Props) {
   const display = hovered ?? null;
 
   return (
-    <div className="tonal-card bg-[#1A1A1A] border border-[#262626] rounded-xl p-5 flex flex-col gap-3 hover:border-[#404040] transition-colors">
-      <h3 className="text-[10px] uppercase tracking-widest text-on-surface-variant">{title}</h3>
+    <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 flex flex-col gap-3 shadow-card">
+      <h3 className="text-[10px] uppercase tracking-widest font-semibold text-on-surface-variant">{title}</h3>
 
       <div className="flex items-center justify-center py-1">
         <div className="relative w-32 h-32">
           <svg className="w-full h-full -rotate-90" viewBox="0 0 128 128">
-            {/* Track ring */}
-            <circle cx={cx} cy={cy} r={R} fill="transparent" stroke="#262626" strokeWidth="12" />
-
-            {/* Segments */}
+            <circle cx={cx} cy={cy} r={R} fill="transparent" stroke="#E4DFCF" strokeWidth="12" />
             {segments.map((s) => (
               <circle
                 key={s.key}
@@ -66,12 +64,9 @@ export default function DonutChart({ title, rows }: Props) {
             ))}
           </svg>
 
-          {/* Center label — shows hovered segment or total */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <p
-              className="text-[15px] font-bold leading-none text-on-surface transition-all"
-              style={{ color: display ? segments.find(s => s.key === display.key)?.color : undefined }}
-            >
+            <p className="text-[15px] font-bold leading-none text-on-surface transition-all"
+              style={{ color: display ? segments.find(s => s.key === display.key)?.color : undefined }}>
               {display ? fmtINR(display.val) : fmtINR(total)}
             </p>
             <p className="text-[10px] text-on-surface-variant mt-1 text-center px-3 max-w-[110px] truncate">
@@ -81,12 +76,11 @@ export default function DonutChart({ title, rows }: Props) {
         </div>
       </div>
 
-      {/* Legend */}
       <div className="grid grid-cols-2 gap-1.5">
         {segments.map((s) => (
           <div
             key={s.key}
-            className={`flex items-center gap-1.5 min-w-0 rounded px-1 py-0.5 cursor-default transition-colors ${hovered?.key === s.key ? "bg-surface-container-high" : ""}`}
+            className={`flex items-center gap-1.5 min-w-0 rounded-lg px-1.5 py-0.5 cursor-default transition-colors ${hovered?.key === s.key ? "bg-surface-container" : ""}`}
             onMouseEnter={() => setHovered({ key: s.key, val: s.val })}
             onMouseLeave={() => setHovered(null)}
           >

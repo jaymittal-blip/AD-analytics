@@ -8,6 +8,15 @@ import {
   classifyWithCriteria,
 } from "@/lib/settings";
 import { Ad } from "@/lib/types";
+import {
+  Columns, SlidersHorizontal, Mail, BellRing,
+  AlertTriangle, Check, Plus, Trash2, PlusCircle,
+  AlertCircle, UserPlus, CheckCircle2, XCircle,
+  MailX, UserMinus, RotateCcw, Loader2, Send,
+  Info, BellPlus, BellRing as BellActive, BellOff,
+  Pencil,
+  type LucideIcon,
+} from "lucide-react";
 
 type CritTab = "kill" | "scale" | "monitor" | "testing";
 const CRIT_TABS: { id: CritTab; label: string }[] = [
@@ -26,13 +35,15 @@ const DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function uid() { return Math.random().toString(36).slice(2); }
 
-function Section({ icon, title, subtitle, children }: { icon: string; title: string; subtitle?: string; children: React.ReactNode }) {
+function Section({ Icon, title, subtitle, children }: { Icon: LucideIcon; title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <section className="space-y-5">
-      <div className="flex items-center gap-2">
-        <span className="material-symbols-outlined text-primary text-[22px]">{icon}</span>
+      <div className="flex items-center gap-2.5">
+        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+          <Icon size={16} strokeWidth={1.75} className="text-primary" />
+        </div>
         <div>
-          <h3 className="text-lg font-semibold text-on-surface">{title}</h3>
+          <h3 className="text-base font-semibold text-on-surface">{title}</h3>
           {subtitle && <p className="text-[11px] text-on-surface-variant">{subtitle}</p>}
         </div>
       </div>
@@ -140,6 +151,19 @@ export default function SettingsPage() {
   const [alertMsg,      setAlertMsg]      = useState<{ ok: boolean; text: string } | null>(null);
   const [showAddAlert,  setShowAddAlert]  = useState(false);
   const [showAddUser,   setShowAddUser]   = useState(false);
+
+  // ── Inline edit state ─────────────────────────────────────────────────────
+  const [editingUserId,   setEditingUserId]   = useState<number | null>(null);
+  const [editUserSched,   setEditUserSched]   = useState("daily");
+  const [editUserHour,    setEditUserHour]    = useState(9);
+  const [editUserDow,     setEditUserDow]     = useState(1);
+  const [editUserDom,     setEditUserDom]     = useState(1);
+  const [editUserCats,    setEditUserCats]    = useState<string[]>([]);
+  const [editingAlertId,  setEditingAlertId]  = useState<number | null>(null);
+  const [editAlertSched,  setEditAlertSched]  = useState("instant");
+  const [editAlertHour,   setEditAlertHour]   = useState(9);
+  const [editAlertDow,    setEditAlertDow]    = useState(1);
+  const [editAlertDom,    setEditAlertDom]    = useState(1);
 
   const fetchUsers = useCallback(async () => {
     const [ur, ar] = await Promise.all([fetch("/api/users"), fetch("/api/alert-recipients")]);
@@ -280,6 +304,37 @@ export default function SettingsPage() {
     fetchUsers();
   }
 
+  function startEditUser(u: ReportUser) {
+    setEditingUserId(u.id);
+    setEditUserSched(u.schedule); setEditUserHour(u.send_hour);
+    setEditUserDow(u.send_day_of_week); setEditUserDom(u.send_day_of_month);
+    setEditUserCats(u.categories);
+  }
+
+  async function saveEditUser(id: number) {
+    await fetch(`/api/users/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schedule: editUserSched, send_hour: editUserHour, send_day_of_week: editUserDow, send_day_of_month: editUserDom, categories: editUserCats }),
+    });
+    setEditingUserId(null);
+    fetchUsers();
+  }
+
+  function startEditAlert(a: AlertRecipient) {
+    setEditingAlertId(a.id);
+    setEditAlertSched(a.schedule); setEditAlertHour(a.send_hour);
+    setEditAlertDow(a.send_day_of_week); setEditAlertDom(a.send_day_of_month);
+  }
+
+  async function saveEditAlert(id: number) {
+    await fetch(`/api/alert-recipients/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schedule: editAlertSched, send_hour: editAlertHour, send_day_of_week: editAlertDow, send_day_of_month: editAlertDom }),
+    });
+    setEditingAlertId(null);
+    fetchUsers();
+  }
+
   // ── Save / Discard ─────────────────────────────────────────────────────────
   async function handleSave() {
     update({ visibleColumns: visibleCols, criteria, email });
@@ -312,14 +367,14 @@ export default function SettingsPage() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="flex items-center justify-between h-16 px-6 bg-surface border-b border-outline-variant/30 shrink-0">
+      <header className="flex items-center justify-between h-16 px-6 bg-surface-container-lowest border-b border-outline-variant shrink-0">
         <div>
-          <h2 className="text-base font-extrabold text-on-surface">Dashboard Settings</h2>
-          <p className="text-[11px] text-on-surface-variant">Configure columns, classification rules, and email reports.</p>
+          <h2 className="text-sm font-bold text-on-surface">Settings</h2>
+          <p className="text-[10px] text-on-surface-variant">Configure columns, classification rules, and email reports.</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={handleDiscard} className="px-5 py-1.5 border border-outline text-on-surface text-sm rounded-lg hover:bg-surface-variant transition-colors">Discard</button>
-          <button onClick={handleSave} className={`px-6 py-1.5 text-sm font-bold rounded-lg transition-all ${saved ? "bg-secondary/30 text-secondary" : "bg-secondary text-on-secondary hover:opacity-90"}`}>
+          <button onClick={handleDiscard} className="px-4 py-1.5 border border-outline-variant text-on-surface-variant text-sm rounded-xl hover:bg-surface-container transition-colors">Discard</button>
+          <button onClick={handleSave} className={`px-5 py-1.5 text-sm font-semibold rounded-xl transition-all ${saved ? "bg-secondary-container text-on-secondary-container" : "bg-primary text-on-primary hover:bg-primary-container"}`}>
             {saved ? "✓ Saved" : "Save Changes"}
           </button>
         </div>
@@ -327,12 +382,12 @@ export default function SettingsPage() {
 
       {/* Criteria-changed warning banner */}
       {criteriaChangedSinceLastSave && (
-        <div className="bg-[#3a2a00] border-b border-[#e6c87a44] px-6 py-3 flex items-center gap-3">
-          <span className="material-symbols-outlined text-[#e6c87a] text-[18px]">warning</span>
-          <p className="text-[12px] text-[#e6c87a] flex-1">
-            <strong>Criteria changed but not saved.</strong> Category change alert emails will mention that criteria changed and may include extra entries. Save to apply changes.
+        <div className="bg-tertiary-container border-b border-tertiary/30 px-6 py-3 flex items-center gap-3">
+          <AlertTriangle size={16} strokeWidth={1.75} className="text-tertiary shrink-0" />
+          <p className="text-[12px] text-on-tertiary-container flex-1">
+            <strong>Criteria changed but not saved.</strong> Save to apply changes and trigger change detection.
           </p>
-          <button onClick={handleSave} className="text-[11px] font-bold text-[#e6c87a] border border-[#e6c87a44] px-3 py-1 rounded hover:bg-[#e6c87a10] transition-colors">Save Now</button>
+          <button onClick={handleSave} className="text-[11px] font-bold text-tertiary border border-tertiary/40 px-3 py-1 rounded-lg hover:bg-tertiary/10 transition-colors">Save Now</button>
         </div>
       )}
 
@@ -341,16 +396,16 @@ export default function SettingsPage() {
         <div className="max-w-5xl mx-auto space-y-12">
 
           {/* ── Section 1: Dashboard Columns ── */}
-          <Section icon="view_column" title="Dashboard Columns">
-            <div className="bg-[#1A1A1A] border border-[#262626] rounded-xl p-6">
+          <Section Icon={Columns} title="Dashboard Columns">
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 shadow-card">
               <p className="text-[10px] uppercase tracking-widest text-on-surface-variant mb-4">Visible Columns — {visibleCols.length} Selected</p>
               <div className="flex flex-wrap gap-2">
                 {ALL_COLUMNS.map(col => {
                   const on = visibleCols.includes(col.key);
                   return (
                     <button key={col.key} onClick={() => toggleCol(col.key)} disabled={!!col.always}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-colors ${on ? "bg-secondary/10 border-secondary text-secondary" : "bg-surface-container-high border-outline-variant text-on-surface-variant hover:border-primary/50"} ${col.always ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}>
-                      <span className="material-symbols-outlined text-[13px]">{on ? "check" : "add"}</span>
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-colors ${on ? "bg-secondary-container border-secondary text-on-secondary-container" : "bg-surface-container border-outline-variant text-on-surface-variant hover:border-primary/50"} ${col.always ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}>
+                      {on ? <Check size={11} strokeWidth={2.5} /> : <Plus size={11} strokeWidth={2.5} />}
                       {col.label.toUpperCase()}
                     </button>
                   );
@@ -360,8 +415,8 @@ export default function SettingsPage() {
           </Section>
 
           {/* ── Section 2: Category Criteria ── */}
-          <Section icon="rule" title="Category Criteria">
-            <div className="bg-[#1A1A1A] border border-[#262626] rounded-xl overflow-hidden">
+          <Section Icon={SlidersHorizontal} title="Category Criteria">
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl overflow-hidden shadow-card">
               <div className="flex border-b border-surface-variant bg-surface-container-low">
                 {CRIT_TABS.map(t => (
                   <button key={t.id} onClick={() => setCritTab(t.id)}
@@ -416,18 +471,18 @@ export default function SettingsPage() {
                       </div>
                       <div className="col-span-1 flex justify-center pb-0.5">
                         <button onClick={() => removeRule(critTab, idx)} disabled={rules.length <= 1} className="p-1.5 text-error hover:bg-error/10 rounded-full transition-colors disabled:opacity-30">
-                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                          <Trash2 size={15} strokeWidth={1.75} />
                         </button>
                       </div>
                     </div>
                   ))}
-                  <button onClick={() => addRule(critTab)} className="w-full py-4 border-2 border-dashed border-surface-variant rounded-lg flex items-center justify-center gap-2 text-on-surface-variant hover:border-primary/40 hover:text-primary transition-all">
-                    <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                    <span className="text-xs font-bold uppercase">Add New Rule</span>
+                  <button onClick={() => addRule(critTab)} className="w-full py-4 border-2 border-dashed border-outline-variant rounded-xl flex items-center justify-center gap-2 text-on-surface-variant hover:border-primary/40 hover:text-primary transition-all">
+                    <PlusCircle size={16} strokeWidth={1.75} />
+                    <span className="text-xs font-semibold uppercase">Add New Rule</span>
                   </button>
                 </div>
-                <div className="bg-error-container/10 border border-error-container/40 p-4 rounded-lg flex gap-3">
-                  <span className="material-symbols-outlined text-error text-[20px] shrink-0 mt-0.5">report</span>
+                <div className="bg-error-container/10 border border-error/20 p-4 rounded-xl flex gap-3">
+                  <AlertCircle size={18} strokeWidth={1.75} className="text-error shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm font-bold text-error mb-0.5">Rules are evaluated left-to-right</p>
                     <p className="text-xs text-on-surface-variant">AND/OR has no precedence — conditions combine in order. Test your criteria before saving to production.</p>
@@ -438,15 +493,15 @@ export default function SettingsPage() {
           </Section>
 
           {/* ── Section 3: Email Report Recipients ── */}
-          <Section icon="mail" title="Email Report Recipients" subtitle="Emails saved here receive periodic performance reports. Removing an email keeps it in the database (soft delete).">
-            <div className="bg-[#1A1A1A] border border-[#262626] rounded-xl p-6 space-y-6">
+          <Section Icon={Mail} title="Email Report Recipients" subtitle="Emails saved here receive periodic performance reports. Removing an email keeps it in the database (soft delete).">
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 space-y-6 shadow-card">
 
               {/* DB recipient list */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] uppercase tracking-widest text-on-surface-variant">Saved Recipients</p>
-                  <button onClick={() => setShowAddUser(v => !v)} className="flex items-center gap-1.5 text-[11px] font-bold text-primary hover:opacity-80 transition-opacity">
-                    <span className="material-symbols-outlined text-[15px]">person_add</span>
+                  <button onClick={() => setShowAddUser(v => !v)} className="flex items-center gap-1.5 text-[11px] font-semibold text-primary hover:opacity-80 transition-opacity">
+                    <UserPlus size={13} strokeWidth={1.75} />
                     Add Email
                   </button>
                 </div>
@@ -465,7 +520,8 @@ export default function SettingsPage() {
                           const on = newUserCats.includes(cat);
                           return (
                             <button key={cat} onClick={() => setNewUserCats(prev => on ? prev.filter(c => c !== cat) : [...prev, cat])}
-                              className={`px-3 py-1 rounded-full text-[11px] border transition-colors ${on ? "bg-secondary/10 border-secondary text-secondary" : "border-outline-variant text-on-surface-variant hover:border-primary/50"}`}>
+                              className={`flex items-center gap-1 px-3 py-1 rounded-full text-[11px] border transition-colors ${on ? "bg-secondary-container border-secondary text-on-secondary-container" : "border-outline-variant text-on-surface-variant hover:border-primary/50"}`}>
+                              {on && <Check size={10} strokeWidth={2.5} />}
                               {cat.toUpperCase()}
                             </button>
                           );
@@ -480,8 +536,8 @@ export default function SettingsPage() {
                 )}
 
                 {userMsg && (
-                  <div className={`flex items-start gap-2 px-3 py-2.5 rounded-lg border text-[12px] ${userMsg.ok ? "bg-secondary/10 border-secondary/30 text-secondary" : "bg-error-container/10 border-error-container/30 text-error"}`}>
-                    <span className="material-symbols-outlined text-[14px] mt-0.5 shrink-0">{userMsg.ok ? "check_circle" : "error"}</span>
+                  <div className={`flex items-start gap-2 px-3 py-2.5 rounded-xl border text-[12px] ${userMsg.ok ? "bg-secondary-container/50 border-secondary/30 text-on-secondary-container" : "bg-error-container/30 border-error/20 text-error"}`}>
+                    {userMsg.ok ? <CheckCircle2 size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" /> : <XCircle size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" />}
                     <span>{userMsg.text}</span>
                   </div>
                 )}
@@ -491,25 +547,60 @@ export default function SettingsPage() {
                 ) : (
                   <div className="space-y-2">
                     {users.map(u => (
-                      <div key={u.id} className={`flex items-center justify-between px-4 py-3 rounded-lg border ${u.is_active ? "bg-surface-container border-surface-variant" : "bg-surface-container/50 border-surface-variant/50 opacity-60"}`}>
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="material-symbols-outlined text-on-surface-variant text-[16px]">{u.is_active ? "mail" : "mail_off"}</span>
-                          <div className="min-w-0">
-                            <p className="text-sm text-on-surface truncate">{u.email}</p>
-                            <p className="text-[11px] text-on-surface-variant">
-                              {SCHEDULE_LABELS[u.schedule] ?? u.schedule} · {u.categories.join(", ")}
-                              {u.last_sent_at && <> · Last sent: {new Date(u.last_sent_at).toLocaleDateString("en-IN",{day:"2-digit",month:"short"})}</>}
-                            </p>
+                      <div key={u.id} className={`rounded-lg border ${u.is_active ? "bg-surface-container border-surface-variant" : "bg-surface-container/50 border-surface-variant/50 opacity-60"}`}>
+                        <div className="flex items-center justify-between px-4 py-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            {u.is_active ? <Mail size={15} strokeWidth={1.75} className="text-on-surface-variant shrink-0" /> : <MailX size={15} strokeWidth={1.75} className="text-on-surface-variant/50 shrink-0" />}
+                            <div className="min-w-0">
+                              <p className="text-sm text-on-surface truncate">{u.email}</p>
+                              <p className="text-[11px] text-on-surface-variant">
+                                {SCHEDULE_LABELS[u.schedule] ?? u.schedule} · {u.categories.join(", ")}
+                                {u.last_sent_at && <> · Last sent: {new Date(u.last_sent_at).toLocaleDateString("en-IN",{day:"2-digit",month:"short"})}</>}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {u.is_active ? (
+                              <>
+                                <button onClick={() => editingUserId === u.id ? setEditingUserId(null) : startEditUser(u)} title="Edit schedule"
+                                  className={`p-1.5 rounded-full transition-colors ${editingUserId === u.id ? "text-primary bg-primary/10" : "text-on-surface-variant hover:bg-surface-container-high"}`}>
+                                  <Pencil size={13} strokeWidth={1.75} />
+                                </button>
+                                <button onClick={() => deleteUser(u.id, u.email)} title="Remove (soft delete)" className="p-1.5 text-error hover:bg-error/10 rounded-full transition-colors">
+                                  <UserMinus size={15} strokeWidth={1.75} />
+                                </button>
+                              </>
+                            ) : (
+                              <button onClick={() => restoreUser(u.id)} title="Restore" className="p-1.5 text-secondary hover:bg-secondary/10 rounded-full transition-colors">
+                                <RotateCcw size={14} strokeWidth={1.75} />
+                              </button>
+                            )}
                           </div>
                         </div>
-                        {u.is_active ? (
-                          <button onClick={() => deleteUser(u.id, u.email)} title="Remove (soft delete)" className="shrink-0 p-1.5 text-error hover:bg-error/10 rounded-full transition-colors">
-                            <span className="material-symbols-outlined text-[16px]">person_remove</span>
-                          </button>
-                        ) : (
-                          <button onClick={() => restoreUser(u.id)} title="Restore" className="shrink-0 p-1.5 text-secondary hover:bg-secondary/10 rounded-full transition-colors">
-                            <span className="material-symbols-outlined text-[16px]">restore</span>
-                          </button>
+                        {editingUserId === u.id && (
+                          <div className="px-4 pb-4 pt-1 border-t border-outline-variant/40 space-y-3">
+                            <ScheduleFields schedule={editUserSched} hour={editUserHour} dow={editUserDow} dom={editUserDom} includeInstant={false}
+                              onSchedule={setEditUserSched} onHour={setEditUserHour} onDow={setEditUserDow} onDom={setEditUserDom} />
+                            <div>
+                              <p className="text-[10px] text-on-surface-variant uppercase mb-1">Include categories</p>
+                              <div className="flex gap-2">
+                                {["kill","scale","monitor","testing"].map(cat => {
+                                  const on = editUserCats.includes(cat);
+                                  return (
+                                    <button key={cat} onClick={() => setEditUserCats(prev => on ? prev.filter(c => c !== cat) : [...prev, cat])}
+                                      className={`flex items-center gap-1 px-3 py-1 rounded-full text-[11px] border transition-colors ${on ? "bg-secondary-container border-secondary text-on-secondary-container" : "border-outline-variant text-on-surface-variant hover:border-primary/50"}`}>
+                                      {on && <Check size={10} strokeWidth={2.5} />}
+                                      {cat.toUpperCase()}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                            <div className="flex gap-2 justify-end">
+                              <button onClick={() => setEditingUserId(null)} className="text-sm text-on-surface-variant px-4 py-1.5 rounded-lg hover:bg-surface-container transition-colors">Cancel</button>
+                              <button onClick={() => saveEditUser(u.id)} className="text-sm font-bold bg-primary text-on-primary px-5 py-1.5 rounded-lg hover:opacity-90 transition-all">Save</button>
+                            </div>
+                          </div>
                         )}
                       </div>
                     ))}
@@ -527,8 +618,8 @@ export default function SettingsPage() {
                       const on = email.categories.includes(cat);
                       return (
                         <button key={cat} onClick={() => toggleEmailCategory(cat)}
-                          className={`flex items-center gap-1 px-3 py-1 rounded-full text-[11px] border transition-colors ${on ? "bg-secondary/10 border-secondary text-secondary" : "bg-surface-container-high border-outline-variant text-on-surface-variant hover:border-primary/50"}`}>
-                          <span className="material-symbols-outlined text-[13px]">{on ? "check" : "add"}</span>
+                          className={`flex items-center gap-1 px-3 py-1 rounded-full text-[11px] border transition-colors ${on ? "bg-secondary-container border-secondary text-on-secondary-container" : "bg-surface-container border-outline-variant text-on-surface-variant hover:border-primary/50"}`}>
+                          {on ? <Check size={11} strokeWidth={2.5} /> : <Plus size={11} strokeWidth={2.5} />}
                           {cat.toUpperCase()}
                         </button>
                       );
@@ -536,13 +627,13 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <button onClick={sendReport} disabled={sending || (!email.recipients.length && users.filter(u => u.is_active).length === 0) || !email.categories.length}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-primary text-on-primary text-sm font-bold rounded-lg hover:opacity-90 disabled:opacity-40 transition-all">
-                  {sending ? <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span> : <span className="material-symbols-outlined text-[18px]">send</span>}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-primary text-on-primary text-sm font-semibold rounded-xl hover:bg-primary-container disabled:opacity-40 transition-all">
+                  {sending ? <Loader2 size={16} strokeWidth={2} className="animate-spin" /> : <Send size={15} strokeWidth={1.75} />}
                   {sending ? "Sending…" : "Send Report"}
                 </button>
                 {sendMsg && (
-                  <div className={`flex items-start gap-2 px-4 py-3 rounded-lg border text-sm ${sendMsg.ok ? "bg-secondary/10 border-secondary/30 text-secondary" : "bg-error-container/10 border-error-container/30 text-error"}`}>
-                    <span className="material-symbols-outlined text-[16px] mt-0.5 shrink-0">{sendMsg.ok ? "check_circle" : "error"}</span>
+                  <div className={`flex items-start gap-2 px-4 py-3 rounded-xl border text-sm ${sendMsg.ok ? "bg-secondary-container/50 border-secondary/30 text-on-secondary-container" : "bg-error-container/30 border-error/20 text-error"}`}>
+                    {sendMsg.ok ? <CheckCircle2 size={15} strokeWidth={1.75} className="mt-0.5 shrink-0" /> : <XCircle size={15} strokeWidth={1.75} className="mt-0.5 shrink-0" />}
                     <span>{sendMsg.text}</span>
                   </div>
                 )}
@@ -551,12 +642,12 @@ export default function SettingsPage() {
           </Section>
 
           {/* ── Section 4: Category Change Alerts ── */}
-          <Section icon="notifications_active" title="Category Change Alerts"
+          <Section Icon={BellRing} title="Category Change Alerts"
             subtitle="When an ad moves from one category to another (e.g. Monitor → Kill), these recipients get notified. Each recipient has their own schedule.">
-            <div className="bg-[#1A1A1A] border border-[#262626] rounded-xl p-6 space-y-5">
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-6 space-y-5 shadow-card">
 
-              <div className="bg-surface-container-highest rounded-lg p-3 flex items-start gap-2.5">
-                <span className="material-symbols-outlined text-tertiary text-[16px] mt-0.5 shrink-0">info</span>
+              <div className="bg-surface-container rounded-xl p-3 flex items-start gap-2.5">
+                <Info size={15} strokeWidth={1.75} className="text-tertiary mt-0.5 shrink-0" />
                 <p className="text-[12px] text-on-surface-variant leading-relaxed">
                   <strong className="text-on-surface">Instant</strong> — email sent within the next 2-minute sync cycle when a change is detected.<br />
                   <strong className="text-on-surface">Daily / Weekly / Monthly</strong> — all changes in that period are bundled into one email.<br />
@@ -567,8 +658,8 @@ export default function SettingsPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] uppercase tracking-widest text-on-surface-variant">Alert Recipients</p>
-                  <button onClick={() => setShowAddAlert(v => !v)} className="flex items-center gap-1.5 text-[11px] font-bold text-tertiary hover:opacity-80 transition-opacity">
-                    <span className="material-symbols-outlined text-[15px]">add_alert</span>
+                  <button onClick={() => setShowAddAlert(v => !v)} className="flex items-center gap-1.5 text-[11px] font-semibold text-tertiary hover:opacity-80 transition-opacity">
+                    <BellPlus size={13} strokeWidth={1.75} />
                     Add Recipient
                   </button>
                 </div>
@@ -588,8 +679,8 @@ export default function SettingsPage() {
                 )}
 
                 {alertMsg && (
-                  <div className={`flex items-start gap-2 px-3 py-2.5 rounded-lg border text-[12px] ${alertMsg.ok ? "bg-secondary/10 border-secondary/30 text-secondary" : "bg-error-container/10 border-error-container/30 text-error"}`}>
-                    <span className="material-symbols-outlined text-[14px] mt-0.5 shrink-0">{alertMsg.ok ? "check_circle" : "error"}</span>
+                  <div className={`flex items-start gap-2 px-3 py-2.5 rounded-xl border text-[12px] ${alertMsg.ok ? "bg-secondary-container/50 border-secondary/30 text-on-secondary-container" : "bg-error-container/30 border-error/20 text-error"}`}>
+                    {alertMsg.ok ? <CheckCircle2 size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" /> : <XCircle size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" />}
                     <span>{alertMsg.text}</span>
                   </div>
                 )}
@@ -599,25 +690,45 @@ export default function SettingsPage() {
                 ) : (
                   <div className="space-y-2">
                     {alerts.map(a => (
-                      <div key={a.id} className={`flex items-center justify-between px-4 py-3 rounded-lg border ${a.is_active ? "bg-surface-container border-surface-variant" : "bg-surface-container/50 border-surface-variant/50 opacity-60"}`}>
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="material-symbols-outlined text-tertiary text-[16px]">{a.is_active ? "notifications_active" : "notifications_off"}</span>
-                          <div className="min-w-0">
-                            <p className="text-sm text-on-surface truncate">{a.email}</p>
-                            <p className="text-[11px] text-on-surface-variant">
-                              {SCHEDULE_LABELS[a.schedule] ?? a.schedule}
-                              {a.last_sent_at && <> · Last alerted: {new Date(a.last_sent_at).toLocaleDateString("en-IN",{day:"2-digit",month:"short"})}</>}
-                            </p>
+                      <div key={a.id} className={`rounded-lg border ${a.is_active ? "bg-surface-container border-surface-variant" : "bg-surface-container/50 border-surface-variant/50 opacity-60"}`}>
+                        <div className="flex items-center justify-between px-4 py-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            {a.is_active ? <BellActive size={15} strokeWidth={1.75} className="text-tertiary shrink-0" /> : <BellOff size={15} strokeWidth={1.75} className="text-on-surface-variant/50 shrink-0" />}
+                            <div className="min-w-0">
+                              <p className="text-sm text-on-surface truncate">{a.email}</p>
+                              <p className="text-[11px] text-on-surface-variant">
+                                {SCHEDULE_LABELS[a.schedule] ?? a.schedule}
+                                {a.last_sent_at && <> · Last alerted: {new Date(a.last_sent_at).toLocaleDateString("en-IN",{day:"2-digit",month:"short"})}</>}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {a.is_active ? (
+                              <>
+                                <button onClick={() => editingAlertId === a.id ? setEditingAlertId(null) : startEditAlert(a)} title="Edit schedule"
+                                  className={`p-1.5 rounded-full transition-colors ${editingAlertId === a.id ? "text-tertiary bg-tertiary/10" : "text-on-surface-variant hover:bg-surface-container-high"}`}>
+                                  <Pencil size={13} strokeWidth={1.75} />
+                                </button>
+                                <button onClick={() => deleteAlert(a.id, a.email)} title="Remove (soft delete)" className="p-1.5 text-error hover:bg-error/10 rounded-full transition-colors">
+                                  <BellOff size={15} strokeWidth={1.75} />
+                                </button>
+                              </>
+                            ) : (
+                              <button onClick={() => restoreAlert(a.id)} title="Restore" className="p-1.5 text-secondary hover:bg-secondary/10 rounded-full transition-colors">
+                                <RotateCcw size={14} strokeWidth={1.75} />
+                              </button>
+                            )}
                           </div>
                         </div>
-                        {a.is_active ? (
-                          <button onClick={() => deleteAlert(a.id, a.email)} title="Remove (soft delete)" className="shrink-0 p-1.5 text-error hover:bg-error/10 rounded-full transition-colors">
-                            <span className="material-symbols-outlined text-[16px]">notifications_off</span>
-                          </button>
-                        ) : (
-                          <button onClick={() => restoreAlert(a.id)} title="Restore" className="shrink-0 p-1.5 text-secondary hover:bg-secondary/10 rounded-full transition-colors">
-                            <span className="material-symbols-outlined text-[16px]">restore</span>
-                          </button>
+                        {editingAlertId === a.id && (
+                          <div className="px-4 pb-4 pt-1 border-t border-outline-variant/40 space-y-3">
+                            <ScheduleFields schedule={editAlertSched} hour={editAlertHour} dow={editAlertDow} dom={editAlertDom} includeInstant
+                              onSchedule={setEditAlertSched} onHour={setEditAlertHour} onDow={setEditAlertDow} onDom={setEditAlertDom} />
+                            <div className="flex gap-2 justify-end">
+                              <button onClick={() => setEditingAlertId(null)} className="text-sm text-on-surface-variant px-4 py-1.5 rounded-lg hover:bg-surface-container transition-colors">Cancel</button>
+                              <button onClick={() => saveEditAlert(a.id)} className="text-sm font-bold bg-tertiary/20 text-tertiary border border-tertiary/40 px-5 py-1.5 rounded-lg hover:bg-tertiary/30 transition-all">Save</button>
+                            </div>
+                          </div>
                         )}
                       </div>
                     ))}

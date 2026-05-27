@@ -11,14 +11,17 @@ import FilterBar, { Filters, DEFAULT_FILTERS } from "./FilterBar";
 import SpendChart from "./charts/SpendChart";
 import DonutChart from "./charts/DonutChart";
 import OverallCard from "./charts/OverallCard";
+import {
+  Search, FileDown, RefreshCw, Info,
+} from "lucide-react";
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: "kill",    label: "Kill List" },
-  { id: "scale",   label: "Scale"     },
-  { id: "monitor", label: "Monitor"   },
-  { id: "testing", label: "Testing"   },
-  { id: "ended",   label: "Ended"     },
-  { id: "all",     label: "All Ads"   },
+const TABS: { id: TabId; label: string; color: string }[] = [
+  { id: "kill",    label: "Kill",    color: "text-error"           },
+  { id: "scale",   label: "Scale",   color: "text-secondary"       },
+  { id: "monitor", label: "Monitor", color: "text-tertiary"        },
+  { id: "testing", label: "Testing", color: "text-on-surface-variant" },
+  { id: "ended",   label: "Ended",   color: "text-on-surface-variant" },
+  { id: "all",     label: "All Ads", color: "text-on-surface"      },
 ];
 
 const RULE_COL_LABEL: Record<string, string> = {
@@ -50,8 +53,8 @@ const CRITERIA_HEADER: Partial<Record<TabId, string>> = {
 function CriteriaBanner({ tab, criteria }: { tab: TabId; criteria: CriteriaMap }) {
   if (tab === "ended") return (
     <>Historical reference only — completed or paused ads.{" "}
-    <strong>ENDED_WIN</strong> = high-ROAS winner. <strong>ENDED_LOSS</strong> = proven loser.{" "}
-    <strong>ENDED_OK</strong> = neutral.</>
+    <strong>Ended Win</strong> = high-ROAS winner. <strong>Ended Loss</strong> = proven loser.{" "}
+    <strong>Ended OK</strong> = neutral.</>
   );
   if (tab === "all") return <>All ads across all categories. Use filters and search to explore.</>;
 
@@ -66,7 +69,7 @@ function CriteriaBanner({ tab, criteria }: { tab: TabId; criteria: CriteriaMap }
           {i > 0 && <span className="font-semibold text-primary"> {rule.logic} </span>}
           {RULE_COL_LABEL[rule.column] ?? rule.column}{" "}
           <span className="font-mono">{rule.operator}</span>{" "}
-          <span className={`font-bold ${NUMERIC_RULE_KEYS.has(rule.column) ? "text-primary-container" : "text-tertiary"}`}>
+          <span className={`font-bold ${NUMERIC_RULE_KEYS.has(rule.column) ? "text-primary" : "text-tertiary"}`}>
             {fmtRuleVal(rule.column, rule.value)}
           </span>
         </span>
@@ -117,14 +120,13 @@ function applyFilters(ads: Ad[], filters: Filters): Ad[] {
   });
 }
 
-const POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+const POLL_INTERVAL_MS = 2 * 60 * 1000;
 
 export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetchedAt }: DashboardProps) {
   const { settings } = useSettings();
   const [activeTab,  setActiveTab]  = useState<TabId>("kill");
   const [filters,    setFilters]    = useState<Filters>(DEFAULT_FILTERS);
   const [syncBadge,  setSyncBadge]  = useState<string | null>(null);
-  // Local ads state so we can update in-place without a full route refresh
   const [liveAds,    setLiveAds]    = useState<Ad[]>(initialAds);
   const [fetchedAt,  setFetchedAt]  = useState(initialFetchedAt);
 
@@ -156,7 +158,6 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
   }, [fetchFreshAds]);
 
   useEffect(() => {
-    // Poll immediately on mount (picks up any changes since page last loaded)
     pollAutoSync();
     const id = setInterval(pollAutoSync, POLL_INTERVAL_MS);
     return () => clearInterval(id);
@@ -166,23 +167,19 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
     liveAds.map(ad => ({ ...ad, _class: classifyWithCriteria(ad, settings.criteria) })) as Ad[]
   , [liveAds, settings.criteria]);
 
-  // Unique filter options
   const platforms = useMemo(() => [...new Set(ads.map(a => a.platform))].sort(), [ads]);
   const brands    = useMemo(() => [...new Set(ads.map(a => a.brand))].sort(),    [ads]);
   const themes    = useMemo(() => [...new Set(ads.map(a => a.creative_theme))].sort(), [ads]);
 
-  // Latest start_date in dataset — presets anchor here
   const maxDate = useMemo(() => {
     const dates = ads.map(a => new Date(a.start_date).getTime()).filter(t => !isNaN(t));
     return dates.length > 0 ? new Date(Math.max(...dates)) : new Date();
   }, [ads]);
 
-  // Apply filters then re-group
   const filteredAll    = useMemo(() => applyFilters(ads, filters), [ads, filters]);
   const filteredGroups = useMemo(() => groupAds(filteredAll),       [filteredAll]);
   const tabAds         = filteredGroups[activeTab];
 
-  // Charts
   const byPlatform  = useMemo(() => breakdownByField(tabAds, "platform"),       [tabAds]);
   const byBrand     = useMemo(() => breakdownByField(tabAds, "brand"),           [tabAds]);
   const byNarrative = useMemo(() => breakdownByField(tabAds, "creative_theme"),  [tabAds]);
@@ -216,46 +213,56 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
   return (
     <>
       {/* Top App Bar */}
-      <header className="flex items-center gap-4 h-16 px-6 bg-surface border-b border-outline-variant/30 shrink-0 no-print">
+      <header className="flex items-center gap-4 h-16 px-6 bg-surface-container-lowest border-b border-outline-variant shrink-0 no-print">
         <div>
-          <h2 className="text-base font-extrabold text-on-surface leading-tight">Ad Performance Intelligence</h2>
+          <h2 className="text-sm font-bold text-on-surface leading-tight">Ad Performance</h2>
           <p className="text-[10px] text-on-surface-variant">{ads.length} ads · {fetchedDate}</p>
         </div>
+
         {syncBadge && (
-          <div className="flex items-center gap-1.5 text-[11px] text-primary bg-primary/10 border border-primary/20 rounded-lg px-3 py-1.5 animate-fade-in">
-            <span className="material-symbols-outlined text-[14px]">sync</span>
+          <div className="flex items-center gap-1.5 text-[11px] text-secondary bg-secondary-container border border-secondary/20 rounded-lg px-3 py-1.5">
+            <RefreshCw size={12} strokeWidth={2} />
             {syncBadge}
           </div>
         )}
-        <div className="flex-1 max-w-md ml-auto relative">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+
+        {/* Search */}
+        <div className="flex-1 max-w-sm ml-auto relative">
+          <Search size={15} strokeWidth={1.75} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
           <input
-            className="w-full bg-surface-container-low border border-outline-variant hover:border-outline focus:border-primary focus:ring-1 focus:ring-primary/30 rounded-lg pl-10 pr-4 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-none transition-all"
-            placeholder="Search Ad ID, theme, platform…"
+            className="w-full bg-surface-container border border-outline-variant hover:border-outline focus:border-primary focus:ring-1 focus:ring-primary/20 rounded-xl pl-9 pr-4 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-none transition-all"
+            placeholder="Search ad, theme, platform…"
             value={filters.search}
             onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
           />
         </div>
-        <button onClick={exportPdf} className="shrink-0 bg-secondary text-on-secondary text-[11px] font-bold px-5 py-2 rounded-lg hover:opacity-90 active:scale-95 transition-all">
-          Export Report
+
+        <button onClick={exportPdf}
+          className="shrink-0 flex items-center gap-1.5 bg-primary text-on-primary text-[12px] font-semibold px-4 py-2 rounded-xl hover:bg-primary-container transition-colors">
+          <FileDown size={14} strokeWidth={2} />
+          Export
         </button>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-5 scrollbar-hide">
-        {/* Sub-tabs */}
-        <nav className="flex items-center gap-0.5 border-b border-outline-variant/30 pb-px no-print">
-          {TABS.map(({ id, label }) => {
+      <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
+
+        {/* Tabs */}
+        <nav className="flex items-center gap-0.5 border-b border-outline-variant pb-px no-print">
+          {TABS.map(({ id, label, color }) => {
             const count  = filteredGroups[id].length;
             const active = activeTab === id;
             return (
               <button
                 key={id}
                 onClick={() => setActiveTab(id)}
-                className={`relative px-5 py-2.5 text-sm transition-colors whitespace-nowrap ${
-                  active ? "font-bold text-primary border-b-2 border-primary -mb-px" : "text-on-surface-variant hover:text-on-surface"
+                className={`relative px-4 py-2.5 text-sm transition-colors whitespace-nowrap ${
+                  active
+                    ? `font-semibold ${color} border-b-2 border-current -mb-px`
+                    : "text-on-surface-variant hover:text-on-surface"
                 }`}
               >
-                {label} <span className={`text-xs ml-0.5 ${active ? "opacity-60" : "opacity-40"}`}>{count}</span>
+                {label}
+                <span className={`text-xs ml-1 font-medium ${active ? "opacity-80" : "opacity-60"}`}>{count}</span>
               </button>
             );
           })}
@@ -264,31 +271,32 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
         {/* Filters */}
         <FilterBar filters={filters} platforms={platforms} brands={brands} themes={themes} maxDate={maxDate} onChange={setFilters} />
 
-        {/* 4 Charts */}
+        {/* Charts row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          <SpendChart title="Spend by Platform"  rows={byPlatform}  barColor="#ff5451" />
-          <SpendChart title="Spend by Brand"     rows={byBrand}     barColor="#4d8eff" />
+          <SpendChart title="Spend by Platform"  rows={byPlatform}  barColor="#2D4032" />
+          <SpendChart title="Spend by Brand"     rows={byBrand}     barColor="#4A6B50" />
           <DonutChart title="Spend by Narrative" rows={byNarrative} />
           <OverallCard ads={tabAds} label={currentTab.label} />
         </div>
 
         {/* Criteria banner */}
-        <div className="bg-on-primary-container/15 border border-primary-container/25 px-5 py-3 rounded-xl flex items-start gap-3">
-          <span className="material-symbols-outlined text-primary-container text-[20px] mt-0.5 shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
-          <p className="text-sm text-on-surface leading-relaxed">
+        <div className="bg-surface-container-lowest border border-outline-variant px-5 py-3 rounded-xl flex items-start gap-3">
+          <Info size={16} strokeWidth={1.75} className="text-on-surface-variant mt-0.5 shrink-0" />
+          <p className="text-sm text-on-surface-variant leading-relaxed">
             <CriteriaBanner tab={activeTab} criteria={settings.criteria} />
           </p>
         </div>
 
-        {/* Table */}
-        <div className="bg-[#1A1A1A] border border-[#262626] rounded-xl overflow-hidden">
-          <div className="flex justify-between items-center px-6 py-4 border-b border-surface-variant">
-            <h3 className="text-base font-semibold text-on-surface">{tableHeader}</h3>
+        {/* Table card */}
+        <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl overflow-hidden shadow-card">
+          <div className="flex justify-between items-center px-6 py-4 border-b border-outline-variant">
+            <h3 className="text-sm font-semibold text-on-surface">{tableHeader}</h3>
             <div className="flex items-center gap-3 no-print">
               <span className="text-[11px] text-on-surface-variant hidden sm:block">Sorted by spend · highest first</span>
-              <button onClick={exportCsv} className="flex items-center gap-1.5 text-[11px] text-on-surface-variant border border-outline-variant px-3 py-1.5 rounded-lg hover:bg-surface-container-high transition-colors">
-                <span className="material-symbols-outlined text-[16px]">download</span>
-                Export {currentTab.label} List
+              <button onClick={exportCsv}
+                className="flex items-center gap-1.5 text-[11px] text-on-surface-variant border border-outline-variant px-3 py-1.5 rounded-lg hover:bg-surface-container transition-colors">
+                <FileDown size={13} strokeWidth={1.75} />
+                Export {currentTab.label}
               </button>
             </div>
           </div>
