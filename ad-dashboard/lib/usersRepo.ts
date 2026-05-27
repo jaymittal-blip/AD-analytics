@@ -50,7 +50,7 @@ export interface CategoryChange {
 
 export async function getReportUsers(): Promise<ReportUser[]> {
   const sql = db();
-  const rows = await sql`SELECT * FROM users ORDER BY created_at DESC`;
+  const rows = await sql`SELECT * FROM users WHERE is_active = TRUE ORDER BY created_at DESC`;
   return rows.map(r => ({
     ...r,
     categories: String(r.categories).split(",").filter(Boolean),
@@ -112,7 +112,7 @@ export async function softDeleteReportUser(id: number): Promise<void> {
 
 export async function getAlertRecipients(): Promise<AlertRecipient[]> {
   const sql = db();
-  const rows = await sql`SELECT * FROM alert_recipients ORDER BY created_at DESC`;
+  const rows = await sql`SELECT * FROM alert_recipients WHERE is_active = TRUE ORDER BY created_at DESC`;
   return rows as AlertRecipient[];
 }
 

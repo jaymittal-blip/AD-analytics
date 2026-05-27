@@ -11,8 +11,8 @@ import { Ad } from "@/lib/types";
 import {
   Columns, SlidersHorizontal, Mail, BellRing,
   AlertTriangle, Check, Plus, Trash2, PlusCircle,
-  AlertCircle, UserPlus, CheckCircle2, XCircle, X,
-  MailX, UserMinus, RotateCcw, Loader2, Send,
+  AlertCircle, UserPlus, CheckCircle2, XCircle,
+  UserMinus, Loader2, Send,
   Info, BellPlus, BellRing as BellActive, BellOff,
   Pencil,
   type LucideIcon,
@@ -547,10 +547,10 @@ export default function SettingsPage() {
                 ) : (
                   <div className="space-y-2">
                     {users.map(u => (
-                      <div key={u.id} className={`rounded-lg border ${u.is_active ? "bg-surface-container border-surface-variant" : "bg-surface-container/50 border-surface-variant/50 opacity-60"}`}>
+                      <div key={u.id} className="rounded-lg border bg-surface-container border-surface-variant">
                         <div className="flex items-center justify-between px-4 py-3">
                           <div className="flex items-center gap-3 min-w-0">
-                            {u.is_active ? <Mail size={15} strokeWidth={1.75} className="text-on-surface-variant shrink-0" /> : <MailX size={15} strokeWidth={1.75} className="text-on-surface-variant/50 shrink-0" />}
+                            <Mail size={15} strokeWidth={1.75} className="text-on-surface-variant shrink-0" />
                             <div className="min-w-0">
                               <p className="text-sm text-on-surface truncate">{u.email}</p>
                               <p className="text-[11px] text-on-surface-variant">
@@ -561,26 +561,13 @@ export default function SettingsPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
-                            {u.is_active ? (
-                              <>
-                                <button onClick={() => editingUserId === u.id ? setEditingUserId(null) : startEditUser(u)} title="Edit schedule"
-                                  className={`p-1.5 rounded-full transition-colors ${editingUserId === u.id ? "text-primary bg-primary/10" : "text-on-surface-variant hover:bg-surface-container-high"}`}>
-                                  <Pencil size={13} strokeWidth={1.75} />
-                                </button>
-                                <button onClick={() => deleteUser(u.id, u.email)} title="Remove (soft delete)" className="p-1.5 text-error hover:bg-error/10 rounded-full transition-colors">
-                                  <UserMinus size={15} strokeWidth={1.75} />
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button onClick={() => restoreUser(u.id)} title="Restore" className="p-1.5 text-secondary hover:bg-secondary/10 rounded-full transition-colors">
-                                  <RotateCcw size={14} strokeWidth={1.75} />
-                                </button>
-                                <button onClick={() => setUsers(prev => prev.filter(u2 => u2.id !== u.id))} title="Dismiss from view" className="p-1.5 text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-surface-container rounded-full transition-colors">
-                                  <X size={13} strokeWidth={2} />
-                                </button>
-                              </>
-                            )}
+                            <button onClick={() => editingUserId === u.id ? setEditingUserId(null) : startEditUser(u)} title="Edit schedule"
+                              className={`p-1.5 rounded-full transition-colors ${editingUserId === u.id ? "text-primary bg-primary/10" : "text-on-surface-variant hover:bg-surface-container-high"}`}>
+                              <Pencil size={13} strokeWidth={1.75} />
+                            </button>
+                            <button onClick={() => deleteUser(u.id, u.email)} title="Remove" className="p-1.5 text-error hover:bg-error/10 rounded-full transition-colors">
+                              <UserMinus size={15} strokeWidth={1.75} />
+                            </button>
                           </div>
                         </div>
                         {editingUserId === u.id && (
@@ -692,10 +679,10 @@ export default function SettingsPage() {
                 ) : (
                   <div className="space-y-2">
                     {alerts.map(a => (
-                      <div key={a.id} className={`rounded-lg border ${a.is_active ? "bg-surface-container border-surface-variant" : "bg-surface-container/50 border-surface-variant/50 opacity-60"}`}>
+                      <div key={a.id} className="rounded-lg border bg-surface-container border-surface-variant">
                         <div className="flex items-center justify-between px-4 py-3">
                           <div className="flex items-center gap-3 min-w-0">
-                            {a.is_active ? <BellActive size={15} strokeWidth={1.75} className="text-tertiary shrink-0" /> : <BellOff size={15} strokeWidth={1.75} className="text-on-surface-variant/50 shrink-0" />}
+                            <BellActive size={15} strokeWidth={1.75} className="text-tertiary shrink-0" />
                             <div className="min-w-0">
                               <p className="text-sm text-on-surface truncate">{a.email}</p>
                               <p className="text-[11px] text-on-surface-variant">
@@ -705,26 +692,13 @@ export default function SettingsPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
-                            {a.is_active ? (
-                              <>
-                                <button onClick={() => editingAlertId === a.id ? setEditingAlertId(null) : startEditAlert(a)} title="Edit schedule"
-                                  className={`p-1.5 rounded-full transition-colors ${editingAlertId === a.id ? "text-tertiary bg-tertiary/10" : "text-on-surface-variant hover:bg-surface-container-high"}`}>
-                                  <Pencil size={13} strokeWidth={1.75} />
-                                </button>
-                                <button onClick={() => deleteAlert(a.id, a.email)} title="Remove (soft delete)" className="p-1.5 text-error hover:bg-error/10 rounded-full transition-colors">
-                                  <BellOff size={15} strokeWidth={1.75} />
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button onClick={() => restoreAlert(a.id)} title="Restore" className="p-1.5 text-secondary hover:bg-secondary/10 rounded-full transition-colors">
-                                  <RotateCcw size={14} strokeWidth={1.75} />
-                                </button>
-                                <button onClick={() => setAlerts(prev => prev.filter(a2 => a2.id !== a.id))} title="Dismiss from view" className="p-1.5 text-on-surface-variant/40 hover:text-on-surface-variant hover:bg-surface-container rounded-full transition-colors">
-                                  <X size={13} strokeWidth={2} />
-                                </button>
-                              </>
-                            )}
+                            <button onClick={() => editingAlertId === a.id ? setEditingAlertId(null) : startEditAlert(a)} title="Edit schedule"
+                              className={`p-1.5 rounded-full transition-colors ${editingAlertId === a.id ? "text-tertiary bg-tertiary/10" : "text-on-surface-variant hover:bg-surface-container-high"}`}>
+                              <Pencil size={13} strokeWidth={1.75} />
+                            </button>
+                            <button onClick={() => deleteAlert(a.id, a.email)} title="Remove" className="p-1.5 text-error hover:bg-error/10 rounded-full transition-colors">
+                              <BellOff size={15} strokeWidth={1.75} />
+                            </button>
                           </div>
                         </div>
                         {editingAlertId === a.id && (
