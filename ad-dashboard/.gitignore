@@ -7,6 +7,9 @@ node_modules/
 .next/
 out/
 
+# TypeScript build cache
+*.tsbuildinfo
+
 # env files
 .env
 .env.local

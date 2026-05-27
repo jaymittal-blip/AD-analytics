@@ -78,7 +78,9 @@ export function getScaleSuggestion(ad: Ad, allAds: Ad[], criteria: CriteriaMap):
     const peakSpend = Math.max(...wins.map(a => a.spend));
     const headroomToCeiling = (peakSpend - ad.spend) / ad.spend;
     if (headroomToCeiling < 0.25) {
-      hi = Math.min(hi, 20);
+      const maxIncrease = Math.max(5, Math.round(headroomToCeiling * 100 * 0.8));
+      hi = Math.min(hi, maxIncrease);
+      lo = Math.min(lo, hi);
       warnings.push(`Near peak spend of ${wins.length} comparable winner(s) — ceiling risk`);
     } else {
       reasons.push(`${wins.length} comparable ENDED_WIN ad(s) peaked at ₹${Math.round(peakSpend / 1000)}K`);
@@ -92,6 +94,10 @@ export function getScaleSuggestion(ad: Ad, allAds: Ad[], criteria: CriteriaMap):
       warnings.push(`Similar ads failed around ₹${Math.round(minLossSpend / 1000)}K — watch that ceiling`);
     }
   }
+
+  // Safety: ensure lo never exceeds hi
+  hi = Math.max(hi, 2);
+  lo = Math.min(lo, hi);
 
   const dataPoints = wins.length + losses.length;
   const confidence: ScaleSuggestion["confidence"] =

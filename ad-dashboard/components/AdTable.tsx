@@ -16,7 +16,8 @@ import {
 type SortKey =
   | "spend" | "roas" | "days_running" | "revenue" | "ctr"
   | "impressions" | "clicks" | "conversions" | "cpc" | "cpa"
-  | "creative_score" | "landing_page_score" | "frequency" | "video_completion_rate";
+  | "creative_score" | "landing_page_score" | "frequency" | "video_completion_rate"
+  | "suggestion";
 
 type SortDir = "asc" | "desc";
 
@@ -72,7 +73,7 @@ function InfoTooltip({ text }: { text: string }) {
   return (
     <span className="relative inline-flex group align-middle ml-1">
       <span className="material-symbols-outlined text-[13px] text-on-surface-variant/50 cursor-help leading-none">info</span>
-      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 rounded-xl bg-surface-container-highest border border-outline-variant shadow-xl p-3 text-[11px] text-on-surface-variant leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-normal font-normal normal-case tracking-normal">
+      <span className="pointer-events-none absolute top-full left-0 mt-1 w-64 rounded-xl bg-surface-container-highest border border-outline-variant shadow-xl p-3 text-[11px] text-on-surface-variant leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-normal font-normal normal-case tracking-normal">
         {text}
       </span>
     </span>
@@ -82,7 +83,7 @@ function InfoTooltip({ text }: { text: string }) {
 function SuggestionTooltip({ reasons, warnings }: { reasons: string[]; warnings: string[] }) {
   if (!reasons.length && !warnings.length) return null;
   return (
-    <span className="pointer-events-none absolute bottom-full right-0 mb-2 w-72 rounded-xl bg-surface-container-highest border border-outline-variant shadow-xl p-3 z-50 opacity-0 group-hover:opacity-100 transition-opacity">
+    <span className="pointer-events-none absolute top-0 right-full mr-2 w-72 rounded-xl bg-surface-container-highest border border-outline-variant shadow-xl p-3 z-50 opacity-0 group-hover:opacity-100 transition-opacity">
       {reasons.map((r, i) => (
         <p key={i} className="flex items-start gap-1.5 text-[11px] text-secondary mb-1">
           <span className="material-symbols-outlined text-[12px] shrink-0 mt-px">check_circle</span>{r}
@@ -128,21 +129,9 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
     });
   }
 
-  const sorted = useMemo(() => {
-    return [...ads].sort((a, b) => {
-      const av = ((a as unknown as Record<string, unknown>)[sortKey] as number) ?? 0;
-      const bv = ((b as unknown as Record<string, unknown>)[sortKey] as number) ?? 0;
-      return sortDir === "desc" ? bv - av : av - bv;
-    });
-  }, [ads, sortKey, sortDir]);
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const pageAds    = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const showCols   = ALL_COLUMNS.filter(c => visible.has(c.key));
-
   const showSuggestion = tab === "scale" || tab === "monitor" || tab === "testing";
 
-  // Pre-compute suggestions for all visible ads on relevant tabs
+  // Pre-compute suggestions before sorted so sort-by-suggestion works
   const suggestionMap = useMemo(() => {
     if (!showSuggestion) return new Map<string, ScaleSuggestion | OutlookResult>();
     const map = new Map<string, ScaleSuggestion | OutlookResult>();
@@ -157,6 +146,31 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
     return map;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ads, allAds, tab, settings.criteria]);
+
+  const sorted = useMemo(() => {
+    return [...ads].sort((a, b) => {
+      if (sortKey === "suggestion") {
+        const sa = suggestionMap.get(a.ad_id);
+        const sb = suggestionMap.get(b.ad_id);
+        const va = sa && "increaseRange" in sa
+          ? parseInt((sa.increaseRange.match(/\+(\d+)/) ?? ["0","0"])[1])
+          : sa ? (sa as OutlookResult).verdict === "LIKELY_SCALE" ? 2 : (sa as OutlookResult).verdict === "UNCERTAIN" ? 1 : 0
+          : 0;
+        const vb = sb && "increaseRange" in sb
+          ? parseInt((sb.increaseRange.match(/\+(\d+)/) ?? ["0","0"])[1])
+          : sb ? (sb as OutlookResult).verdict === "LIKELY_SCALE" ? 2 : (sb as OutlookResult).verdict === "UNCERTAIN" ? 1 : 0
+          : 0;
+        return sortDir === "desc" ? vb - va : va - vb;
+      }
+      const av = ((a as unknown as Record<string, unknown>)[sortKey] as number) ?? 0;
+      const bv = ((b as unknown as Record<string, unknown>)[sortKey] as number) ?? 0;
+      return sortDir === "desc" ? bv - av : av - bv;
+    });
+  }, [ads, sortKey, sortDir, suggestionMap]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const pageAds    = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const showCols   = ALL_COLUMNS.filter(c => visible.has(c.key));
 
   function roasColor(roas: number) {
     if (roas < THRESHOLDS.ROAS_KILL)   return "text-primary-container";
@@ -244,8 +258,15 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
                 </th>
               ))}
               {showSuggestion && (
-                <th className="px-5 py-3.5 font-semibold whitespace-nowrap text-left">
+                <th
+                  className="px-5 py-3.5 font-semibold whitespace-nowrap text-left cursor-pointer hover:text-on-surface select-none"
+                  onClick={() => toggleSort("suggestion")}
+                >
                   {tab === "scale" ? "Scale Suggestion" : "Outlook"}
+                  {sortKey === "suggestion"
+                    ? <span className="material-symbols-outlined text-[12px] align-middle ml-0.5 text-primary">{sortDir === "desc" ? "arrow_downward" : "arrow_upward"}</span>
+                    : <span className="material-symbols-outlined text-[12px] align-middle ml-0.5 text-on-surface-variant/50">unfold_more</span>
+                  }
                   <InfoTooltip text={tab === "scale" ? SCALE_SUGGESTION_INFO : OUTLOOK_INFO} />
                 </th>
               )}
