@@ -292,7 +292,7 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
               </button>
             </div>
           </div>
-          <AdTable ads={tabAds} emptyMessage="No ads in this category." />
+          <AdTable ads={tabAds} allAds={ads} tab={activeTab} emptyMessage="No ads in this category." />
         </div>
 
         <div className="h-4" />

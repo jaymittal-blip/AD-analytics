@@ -2,10 +2,16 @@
 
 import { useState, useMemo } from "react";
 import { Ad } from "@/lib/types";
+import { TabId } from "@/lib/types";
 import { fmtINR, fmtRoas, fmtPct, fmtNumber } from "@/lib/format";
 import { THRESHOLDS } from "@/lib/analyzer";
 import { useSettings } from "@/contexts/SettingsProvider";
 import Badge from "./Badge";
+import {
+  getScaleSuggestion, getOutlook,
+  SCALE_SUGGESTION_INFO, OUTLOOK_INFO,
+  ScaleSuggestion, OutlookResult,
+} from "@/lib/suggestions";
 
 type SortKey =
   | "spend" | "roas" | "days_running" | "revenue" | "ctr"
@@ -51,10 +57,47 @@ const ALWAYS_ON = new Set<ColKey>(["ad_id", "_class"]);
 
 interface Props {
   ads: Ad[];
+  allAds?: Ad[];
+  tab?: TabId;
   emptyMessage?: string;
 }
 
-export default function AdTable({ ads, emptyMessage = "No ads in this category." }: Props) {
+const CONFIDENCE_DOT: Record<string, string> = {
+  high:   "bg-secondary",
+  medium: "bg-primary-container",
+  low:    "bg-on-surface-variant/40",
+};
+
+function InfoTooltip({ text }: { text: string }) {
+  return (
+    <span className="relative inline-flex group align-middle ml-1">
+      <span className="material-symbols-outlined text-[13px] text-on-surface-variant/50 cursor-help leading-none">info</span>
+      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 rounded-xl bg-surface-container-highest border border-outline-variant shadow-xl p-3 text-[11px] text-on-surface-variant leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-normal font-normal normal-case tracking-normal">
+        {text}
+      </span>
+    </span>
+  );
+}
+
+function SuggestionTooltip({ reasons, warnings }: { reasons: string[]; warnings: string[] }) {
+  if (!reasons.length && !warnings.length) return null;
+  return (
+    <span className="pointer-events-none absolute bottom-full right-0 mb-2 w-72 rounded-xl bg-surface-container-highest border border-outline-variant shadow-xl p-3 z-50 opacity-0 group-hover:opacity-100 transition-opacity">
+      {reasons.map((r, i) => (
+        <p key={i} className="flex items-start gap-1.5 text-[11px] text-secondary mb-1">
+          <span className="material-symbols-outlined text-[12px] shrink-0 mt-px">check_circle</span>{r}
+        </p>
+      ))}
+      {warnings.map((w, i) => (
+        <p key={i} className="flex items-start gap-1.5 text-[11px] text-primary-container mb-1">
+          <span className="material-symbols-outlined text-[12px] shrink-0 mt-px">warning</span>{w}
+        </p>
+      ))}
+    </span>
+  );
+}
+
+export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads in this category." }: Props) {
   const { settings } = useSettings();
   const [sortKey,  setSortKey]  = useState<SortKey>("spend");
   const [sortDir,  setSortDir]  = useState<SortDir>("desc");
@@ -96,6 +139,24 @@ export default function AdTable({ ads, emptyMessage = "No ads in this category."
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const pageAds    = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const showCols   = ALL_COLUMNS.filter(c => visible.has(c.key));
+
+  const showSuggestion = tab === "scale" || tab === "monitor" || tab === "testing";
+
+  // Pre-compute suggestions for all visible ads on relevant tabs
+  const suggestionMap = useMemo(() => {
+    if (!showSuggestion) return new Map<string, ScaleSuggestion | OutlookResult>();
+    const map = new Map<string, ScaleSuggestion | OutlookResult>();
+    for (const ad of ads) {
+      map.set(
+        ad.ad_id,
+        tab === "scale"
+          ? getScaleSuggestion(ad, allAds, settings.criteria)
+          : getOutlook(ad, allAds, settings.criteria),
+      );
+    }
+    return map;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ads, allAds, tab, settings.criteria]);
 
   function roasColor(roas: number) {
     if (roas < THRESHOLDS.ROAS_KILL)   return "text-primary-container";
@@ -182,12 +243,18 @@ export default function AdTable({ ads, emptyMessage = "No ads in this category."
                   )}
                 </th>
               ))}
+              {showSuggestion && (
+                <th className="px-5 py-3.5 font-semibold whitespace-nowrap text-left">
+                  {tab === "scale" ? "Scale Suggestion" : "Outlook"}
+                  <InfoTooltip text={tab === "scale" ? SCALE_SUGGESTION_INFO : OUTLOOK_INFO} />
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-variant">
             {pageAds.length === 0 ? (
               <tr>
-                <td colSpan={showCols.length} className="text-center text-on-surface-variant py-14 text-sm">
+                <td colSpan={showCols.length + (showSuggestion ? 1 : 0)} className="text-center text-on-surface-variant py-14 text-sm">
                   {emptyMessage}
                 </td>
               </tr>
@@ -201,6 +268,42 @@ export default function AdTable({ ads, emptyMessage = "No ads in this category."
                     {renderCell(ad, col.key)}
                   </td>
                 ))}
+                {showSuggestion && (() => {
+                  const s = suggestionMap.get(ad.ad_id);
+                  if (!s) return <td className="px-5 py-3" />;
+                  if (tab === "scale") {
+                    const sg = s as ScaleSuggestion;
+                    return (
+                      <td className="px-5 py-3">
+                        <div className="relative group inline-flex flex-col gap-0.5 cursor-default">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm font-bold text-secondary">{sg.increaseRange}</span>
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${CONFIDENCE_DOT[sg.confidence]}`} title={`${sg.confidence} confidence`} />
+                          </div>
+                          <SuggestionTooltip reasons={sg.reasons} warnings={sg.warnings} />
+                        </div>
+                      </td>
+                    );
+                  }
+                  const ol = s as OutlookResult;
+                  const verdictCfg = ol.verdict === "LIKELY_SCALE"
+                    ? { label: "Likely Scale", icon: "trending_up",   cls: "text-secondary" }
+                    : ol.verdict === "LIKELY_KILL"
+                    ? { label: "Likely Kill",  icon: "trending_down", cls: "text-primary-container" }
+                    : { label: "Uncertain",    icon: "help",          cls: "text-on-surface-variant" };
+                  return (
+                    <td className="px-5 py-3">
+                      <div className="relative group inline-flex flex-col gap-0.5 cursor-default">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`material-symbols-outlined text-[16px] ${verdictCfg.cls}`} style={{ fontVariationSettings: "'FILL' 1" }}>{verdictCfg.icon}</span>
+                          <span className={`text-sm font-semibold ${verdictCfg.cls}`}>{verdictCfg.label}</span>
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${CONFIDENCE_DOT[ol.confidence]}`} title={`${ol.confidence} confidence`} />
+                        </div>
+                        <SuggestionTooltip reasons={ol.reasons} warnings={ol.warnings} />
+                      </div>
+                    </td>
+                  );
+                })()}
               </tr>
             ))}
           </tbody>
