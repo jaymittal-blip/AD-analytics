@@ -50,6 +50,8 @@ function toAd(row: Record<string, string>): Ad | null {
     frequency:            Number(row.frequency)           || 0,
     video_completion_rate: row.video_completion_rate != null && row.video_completion_rate !== ""
       ? Number(row.video_completion_rate) : null,
+    landing_page: row.landing_page?.trim() || null,
+    product_name: row.product_name?.trim() || null,
     _class: "TESTING",
   } as Ad;
 }

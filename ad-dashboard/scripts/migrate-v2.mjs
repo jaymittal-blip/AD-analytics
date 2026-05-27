@@ -67,6 +67,12 @@ async function run() {
   await sql`ALTER TABLE ads ADD COLUMN IF NOT EXISTS last_class TEXT`;
   console.log("✓ ads.last_class column");
 
+  await sql`ALTER TABLE ads ADD COLUMN IF NOT EXISTS landing_page TEXT`;
+  console.log("✓ ads.landing_page column");
+
+  await sql`ALTER TABLE ads ADD COLUMN IF NOT EXISTS product_name TEXT`;
+  console.log("✓ ads.product_name column");
+
   console.log("\nMigration complete.");
 }
 

@@ -77,7 +77,7 @@ export async function upsertAd(
         creative_theme, status, start_date, days_running, spend,
         impressions, clicks, ctr, conversions, revenue, roas, cpc, cpa,
         creative_score, landing_page_score, frequency, video_completion_rate,
-        source, updated_at
+        landing_page, product_name, source, updated_at
       ) VALUES (
         ${ad.ad_id},          ${ad.platform},         ${ad.brand},
         ${ad.category},       ${ad.ad_type},           ${ad.target_audience},
@@ -87,6 +87,7 @@ export async function upsertAd(
         ${ad.revenue},        ${ad.roas},              ${ad.cpc},
         ${ad.cpa},            ${ad.creative_score},    ${ad.landing_page_score},
         ${ad.frequency},      ${ad.video_completion_rate ?? null},
+        ${ad.landing_page ?? null}, ${ad.product_name ?? null},
         ${source},            ${new Date().toISOString()}
       )
       ON CONFLICT (ad_id) DO UPDATE SET
@@ -112,6 +113,8 @@ export async function upsertAd(
         landing_page_score    = EXCLUDED.landing_page_score,
         frequency             = EXCLUDED.frequency,
         video_completion_rate = EXCLUDED.video_completion_rate,
+        landing_page          = EXCLUDED.landing_page,
+        product_name          = EXCLUDED.product_name,
         source                = EXCLUDED.source,
         updated_at            = EXCLUDED.updated_at
     `;
@@ -191,6 +194,8 @@ export function rowToAd(r: Record<string, unknown>): Ad {
     frequency:            Number(r.frequency),
     video_completion_rate: r.video_completion_rate != null
       ? Number(r.video_completion_rate) : null,
+    landing_page:  r.landing_page  != null ? String(r.landing_page)  : null,
+    product_name:  r.product_name  != null ? String(r.product_name)  : null,
     _class: "TESTING",
   } as Ad;
 }

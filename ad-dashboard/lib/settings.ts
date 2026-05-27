@@ -27,6 +27,8 @@ export const ALL_COLUMNS: { key: string; label: string; always?: boolean }[] = [
   { key: "landing_page_score",    label: "Landing Page Score"                   },
   { key: "frequency",             label: "Frequency"                            },
   { key: "video_completion_rate", label: "Video Completion Rate"                },
+  { key: "product_name",          label: "Product Name"                         },
+  { key: "landing_page",          label: "Landing Page"                         },
 ];
 
 // All columns available as rule targets (excludes _class which is the computed result)

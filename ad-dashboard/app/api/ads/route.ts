@@ -59,6 +59,8 @@ export async function POST(req: NextRequest) {
       video_completion_rate: body.video_completion_rate != null
         ? Number(body.video_completion_rate)
         : (existing?.video_completion_rate ?? null),
+      landing_page: (body as Record<string, unknown>).landing_page as string ?? existing?.landing_page ?? null,
+      product_name: (body as Record<string, unknown>).product_name as string ?? existing?.product_name ?? null,
       _class: "TESTING",
     };
 

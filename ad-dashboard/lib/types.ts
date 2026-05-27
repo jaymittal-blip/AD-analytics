@@ -22,6 +22,8 @@ export interface Ad {
   landing_page_score: number;
   frequency: number;
   video_completion_rate: number | null;
+  landing_page: string | null;
+  product_name: string | null;
   _class: AdClass;
 }
 

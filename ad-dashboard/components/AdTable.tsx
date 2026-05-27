@@ -41,6 +41,8 @@ const ALL_COLUMNS = [
   { key: "landing_page_score",    label: "Landing Page Score",     align: "right", sortKey: "landing_page_score"    },
   { key: "frequency",             label: "Frequency",              align: "right", sortKey: "frequency"             },
   { key: "video_completion_rate", label: "Video Completion Rate",  align: "right", sortKey: "video_completion_rate" },
+  { key: "product_name",          label: "Product Name",           align: "left",  sortKey: null                    },
+  { key: "landing_page",          label: "Landing Page",           align: "left",  sortKey: null                    },
 ] as const;
 
 type ColKey = (typeof ALL_COLUMNS)[number]["key"];
@@ -151,6 +153,12 @@ export default function AdTable({ ads, emptyMessage = "No ads in this category."
         return <span className="font-mono text-sm text-on-surface-variant">{ad.frequency?.toFixed(2) ?? "—"}</span>;
       case "video_completion_rate":
         return <span className="font-mono text-sm text-on-surface-variant">{ad.video_completion_rate != null ? fmtPct(ad.video_completion_rate) : "—"}</span>;
+      case "product_name":
+        return <span className="text-sm text-on-surface-variant">{ad.product_name ?? "—"}</span>;
+      case "landing_page":
+        return ad.landing_page
+          ? <a href={ad.landing_page} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline underline-offset-2 truncate max-w-[180px] block" title={ad.landing_page}>{ad.landing_page.replace(/^https?:\/\//, "")}</a>
+          : <span className="text-sm text-on-surface-variant">—</span>;
     }
   }
 
