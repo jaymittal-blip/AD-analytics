@@ -13,7 +13,8 @@ import {
   ScaleSuggestion, OutlookResult,
 } from "@/lib/suggestions";
 import {
-  setRevisit, getRevisits, DEMO_AD_ID, DEMO_REVISIT_MS, RevisitEntry,
+  setRevisit, getRevisits, markVisited, clearRevisit,
+  DEMO_AD_ID, DEMO_REVISIT_MS, RevisitEntry, isEntryOverdue,
 } from "@/lib/revisitStore";
 import {
   ArrowDown, ArrowUp, ChevronsUpDown,
@@ -94,10 +95,11 @@ type ColKey = (typeof ALL_COLUMNS)[number]["key"];
 const ALWAYS_ON = new Set<ColKey>(["ad_id", "_class"]);
 
 interface Props {
-  ads: Ad[];
-  allAds?: Ad[];
-  tab?: TabId;
+  ads:          Ad[];
+  allAds?:      Ad[];
+  tab?:         TabId;
   emptyMessage?: string;
+  onAdKilled?:  (adId: string) => void;
 }
 
 const CONFIDENCE_DOT: Record<string, string> = {
@@ -136,11 +138,12 @@ function SuggestionTooltip({ reasons, warnings }: { reasons: string[]; warnings:
 }
 
 type ActionModal =
-  | { type: "kill"; ad: Ad }
-  | { type: "scale"; ad: Ad; suggestion: ScaleSuggestion }
+  | { type: "kill";        ad: Ad }
+  | { type: "scale";       ad: Ad; suggestion: ScaleSuggestion }
+  | { type: "next-action"; ad: Ad }
   | null;
 
-export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads in this category." }: Props) {
+export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads in this category.", onAdKilled }: Props) {
   const { settings } = useSettings();
   const [sortKey,  setSortKey]  = useState<SortKey>("spend");
   const [sortDir,  setSortDir]  = useState<SortDir>("desc");
@@ -175,6 +178,15 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
     const id = setTimeout(() => setDemoCountdown(c => c! - 1), 1000);
     return () => clearTimeout(id);
   }, [demoCountdown]);
+
+  // Ticker so the Action column detects when a countdown goes overdue
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const hasPending = revisitEntries.some(e => !e.visited);
+    if (!hasPending) return;
+    const id = setInterval(() => setNow(Date.now()), 2_000);
+    return () => clearInterval(id);
+  }, [revisitEntries]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === "desc" ? "asc" : "desc");
@@ -246,6 +258,40 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
       setActionMsg({ ok: true, text: `Budget scaled +${pct}% on Ad Set "${data.adset_name}". Revisit in ${modal.suggestion.revisitDays} days.` });
     } catch (err) { setActionMsg({ ok: false, text: String(err) }); }
     finally { setActing(false); }
+  }
+
+  async function handleNextActionKill() {
+    if (!modal || modal.type !== "next-action") return;
+    const ad = modal.ad;
+    setActing(true); setActionMsg(null);
+    try {
+      // Pause on Meta (skip API call for demo ad)
+      if (ad.ad_id !== DEMO_AD_ID) {
+        const r    = await fetch("/api/meta/ad/pause", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ad_id: ad.ad_id }) });
+        const data = await r.json();
+        if (data.error) throw new Error(data.error);
+      }
+      // Save ENDED override to DB
+      await fetch("/api/ads/status-overrides", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ad_id: ad.ad_id, status: "ENDED" }) });
+      // Clear revisit entry from localStorage
+      clearRevisit(ad.ad_id);
+      // Notify Dashboard to reclassify immediately
+      onAdKilled?.(ad.ad_id);
+      closeModal();
+    } catch (err) {
+      setActionMsg({ ok: false, text: String(err) });
+    } finally { setActing(false); }
+  }
+
+  function handleNextActionScaleAgain() {
+    if (!modal || modal.type !== "next-action") return;
+    const ad = modal.ad;
+    // Clear the old overdue entry so countdown resets after new scale
+    clearRevisit(ad.ad_id);
+    setModal(null);
+    setActionMsg(null);
+    // Open the scale modal
+    openScale(ad);
   }
 
   const suggestionMap = useMemo(() => {
@@ -454,26 +500,53 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
                     </td>
                   );
                 })()}
-                {showActions && (
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      {(tab === "kill" || tab === "monitor" || tab === "testing") && (
-                        <button onClick={() => openKill(ad)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-error/10 border border-error/20 text-error text-[11px] font-semibold rounded-lg hover:bg-error/20 transition-colors whitespace-nowrap">
-                          <StopCircle size={12} strokeWidth={2} />
-                          Pause
-                        </button>
-                      )}
-                      {(tab === "scale" || tab === "monitor" || tab === "testing") && (
-                        <button onClick={() => openScale(ad)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/10 border border-secondary/20 text-secondary text-[11px] font-semibold rounded-lg hover:bg-secondary/20 transition-colors whitespace-nowrap">
-                          <ScaleIcon size={12} strokeWidth={2} />
-                          Scale
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                )}
+                {showActions && (() => {
+                  const entry      = revisitEntries.find(e => e.adId === ad.ad_id);
+                  const isOverdue  = entry && !entry.visited && isEntryOverdue(entry, now);
+                  const isVisited  = entry?.visited;
+
+                  return (
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        {(tab === "kill" || tab === "monitor" || tab === "testing") && (
+                          <button onClick={() => openKill(ad)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-error/10 border border-error/20 text-error text-[11px] font-semibold rounded-lg hover:bg-error/20 transition-colors whitespace-nowrap">
+                            <StopCircle size={12} strokeWidth={2} />
+                            Pause
+                          </button>
+                        )}
+                        {tab === "scale" && (
+                          isVisited ? (
+                            <button onClick={() => { setModal({ type: "next-action", ad }); setActionMsg(null); }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 border border-primary/20 text-primary text-[11px] font-semibold rounded-lg hover:bg-primary/20 transition-colors whitespace-nowrap">
+                              <ScaleIcon size={12} strokeWidth={2} />
+                              Next Action
+                            </button>
+                          ) : isOverdue ? (
+                            <button onClick={() => markVisited(ad.ad_id)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-tertiary/10 border border-tertiary/30 text-tertiary text-[11px] font-semibold rounded-lg hover:bg-tertiary/20 transition-colors whitespace-nowrap animate-pulse">
+                              <CheckCircle2 size={12} strokeWidth={2} />
+                              Visited
+                            </button>
+                          ) : (
+                            <button onClick={() => openScale(ad)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/10 border border-secondary/20 text-secondary text-[11px] font-semibold rounded-lg hover:bg-secondary/20 transition-colors whitespace-nowrap">
+                              <ScaleIcon size={12} strokeWidth={2} />
+                              Scale
+                            </button>
+                          )
+                        )}
+                        {(tab === "monitor" || tab === "testing") && (
+                          <button onClick={() => openScale(ad)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/10 border border-secondary/20 text-secondary text-[11px] font-semibold rounded-lg hover:bg-secondary/20 transition-colors whitespace-nowrap">
+                            <ScaleIcon size={12} strokeWidth={2} />
+                            Scale
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  );
+                })()}
               </tr>
             ))}
           </tbody>
@@ -662,6 +735,63 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
                       className="flex items-center gap-2 px-5 py-2 bg-secondary text-on-secondary text-sm font-semibold rounded-xl hover:opacity-90 disabled:opacity-50 transition-all">
                       {acting ? <Loader2 size={14} strokeWidth={2} className="animate-spin" /> : <ScaleIcon size={14} strokeWidth={2} />}
                       {acting ? "Applying…" : `Apply +${scaleInput}%`}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Next Action modal */}
+            {modal.type === "next-action" && (
+              <>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <ScaleIcon size={16} strokeWidth={1.75} className="text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-on-surface">Next Action</h3>
+                      <p className="text-[11px] text-on-surface-variant font-mono">{modal.ad.ad_id}</p>
+                    </div>
+                  </div>
+                  <button onClick={closeModal} className="p-1 rounded-lg hover:bg-surface-container text-on-surface-variant transition-colors"><X size={16} /></button>
+                </div>
+
+                <div className="bg-surface-container border border-outline-variant rounded-xl px-4 py-3 text-[12px] text-on-surface-variant space-y-1">
+                  <p><strong className="text-on-surface">Ad:</strong> {modal.ad.creative_theme} · {modal.ad.platform}</p>
+                  <p><strong className="text-on-surface">ROAS:</strong> {modal.ad.roas?.toFixed(1)}x · <strong className="text-on-surface">Days running:</strong> {modal.ad.days_running}</p>
+                </div>
+
+                <p className="text-[12px] text-on-surface-variant">
+                  You've revisited this ad. What would you like to do next?
+                </p>
+
+                {actionMsg && (
+                  <div className={`flex items-start gap-2 px-3 py-2.5 rounded-xl border text-[12px] ${actionMsg.ok ? "bg-secondary-container/50 border-secondary/30 text-on-secondary-container" : "bg-error-container/30 border-error/20 text-error"}`}>
+                    {actionMsg.ok ? <CheckCircle2 size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" /> : <AlertCircle size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" />}
+                    <span>{actionMsg.text}
+                      {!actionMsg.ok && actionMsg.text.includes("not connected") && (
+                        <a href="/new-ad" className="ml-1 underline font-semibold inline-flex items-center gap-0.5">Connect now <ExternalLink size={10} /></a>
+                      )}
+                    </span>
+                  </div>
+                )}
+
+                {!actionMsg?.ok && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <button onClick={handleNextActionKill} disabled={acting}
+                      className="flex flex-col items-center gap-1.5 px-4 py-4 bg-error/5 border border-error/20 text-error rounded-xl hover:bg-error/10 disabled:opacity-50 transition-all">
+                      {acting
+                        ? <Loader2 size={20} strokeWidth={1.75} className="animate-spin" />
+                        : <StopCircle size={20} strokeWidth={1.75} />}
+                      <span className="text-sm font-bold">Kill Ad</span>
+                      <span className="text-[10px] text-center text-on-surface-variant leading-tight">Pause on Meta + move to Ended</span>
+                    </button>
+                    <button onClick={handleNextActionScaleAgain} disabled={acting}
+                      className="flex flex-col items-center gap-1.5 px-4 py-4 bg-secondary/5 border border-secondary/20 text-secondary rounded-xl hover:bg-secondary/10 disabled:opacity-50 transition-all">
+                      <ScaleIcon size={20} strokeWidth={1.75} />
+                      <span className="text-sm font-bold">Scale Again</span>
+                      <span className="text-[10px] text-center text-on-surface-variant leading-tight">Reset timer + scale budget again</span>
                     </button>
                   </div>
                 )}

@@ -132,13 +132,14 @@ const POLL_INTERVAL_MS = 2 * 60 * 1000;
 
 export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetchedAt }: DashboardProps) {
   const { settings } = useSettings();
-  const [activeTab,      setActiveTab]      = useState<TabId>("kill");
-  const [filters,        setFilters]        = useState<Filters>(DEFAULT_FILTERS);
-  const [syncBadge,      setSyncBadge]      = useState<string | null>(null);
-  const [liveAds,        setLiveAds]        = useState<Ad[]>(initialAds);
-  const [fetchedAt,      setFetchedAt]      = useState(initialFetchedAt);
-  const [overdueEntries, setOverdueEntries] = useState<RevisitEntry[]>([]);
-  const [revisitDueIds,  setRevisitDueIds]  = useState<Set<string>>(new Set());
+  const [activeTab,       setActiveTab]       = useState<TabId>("kill");
+  const [filters,         setFilters]         = useState<Filters>(DEFAULT_FILTERS);
+  const [syncBadge,       setSyncBadge]       = useState<string | null>(null);
+  const [liveAds,         setLiveAds]         = useState<Ad[]>(initialAds);
+  const [fetchedAt,       setFetchedAt]       = useState(initialFetchedAt);
+  const [overdueEntries,  setOverdueEntries]  = useState<RevisitEntry[]>([]);
+  const [revisitDueIds,   setRevisitDueIds]   = useState<Set<string>>(new Set());
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
 
   const fetchFreshAds = useCallback(async () => {
     try {
@@ -194,9 +195,26 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
     return () => window.removeEventListener("revisit-updated", compute);
   }, [filters.revisitDue]);
 
+  // Load DB status overrides (e.g. killed ads marked as ENDED)
+  useEffect(() => {
+    fetch("/api/ads/status-overrides")
+      .then(r => r.json())
+      .then((d: { overrides: Record<string, string> }) => setStatusOverrides(d.overrides ?? {}))
+      .catch(() => {});
+  }, []);
+
+  const handleAdKilled = useCallback((adId: string) => {
+    setStatusOverrides(prev => ({ ...prev, [adId]: "ENDED" }));
+  }, []);
+
   const ads = useMemo(() =>
-    liveAds.map(ad => ({ ...ad, _class: classifyWithCriteria(ad, settings.criteria) })) as Ad[]
-  , [liveAds, settings.criteria]);
+    liveAds.map(ad => {
+      if (statusOverrides[ad.ad_id] === "ENDED") {
+        return { ...ad, _class: "ended" as TabId, status: "ENDED" };
+      }
+      return { ...ad, _class: classifyWithCriteria(ad, settings.criteria) };
+    }) as Ad[]
+  , [liveAds, settings.criteria, statusOverrides]);
 
   const platforms = useMemo(() => [...new Set(ads.map(a => a.platform))].sort(), [ads]);
   const brands    = useMemo(() => [...new Set(ads.map(a => a.brand))].sort(),    [ads]);
@@ -367,7 +385,7 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
               </button>
             </div>
           </div>
-          <AdTable ads={tabAds} allAds={ads} tab={activeTab} emptyMessage="No ads in this category." />
+          <AdTable ads={tabAds} allAds={ads} tab={activeTab} emptyMessage="No ads in this category." onAdKilled={handleAdKilled} />
         </div>
 
         <div className="h-4" />
