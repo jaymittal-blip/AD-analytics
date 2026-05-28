@@ -15,7 +15,7 @@ export default function DonutChart({ title, rows }: Props) {
   const [hovered, setHovered] = useState<{ key: string; val: number } | null>(null);
 
   const top6  = rows.slice(0, 6);
-  const total = top6.reduce((s, [, v]) => s + v, 0);
+  const total = rows.reduce((s, [, v]) => s + v, 0);
 
   const R             = 54;
   const cx            = 64;
@@ -88,6 +88,11 @@ export default function DonutChart({ title, rows }: Props) {
             <span className="text-[11px] text-on-surface-variant truncate" title={s.key}>{s.key}</span>
           </div>
         ))}
+        {rows.length > 6 && (
+          <div className="col-span-2 text-[10px] text-on-surface-variant/50 px-1.5 pt-0.5">
+            +{rows.length - 6} more narratives not shown
+          </div>
+        )}
       </div>
     </div>
   );
