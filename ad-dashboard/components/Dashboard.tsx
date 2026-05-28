@@ -210,7 +210,7 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
   const ads = useMemo(() =>
     liveAds.map(ad => {
       if (statusOverrides[ad.ad_id] === "ENDED") {
-        return { ...ad, _class: "ended" as TabId, status: "ENDED" };
+        return { ...ad, _class: "ENDED_OK" as Ad["_class"], status: "ENDED" };
       }
       return { ...ad, _class: classifyWithCriteria(ad, settings.criteria) };
     }) as Ad[]
