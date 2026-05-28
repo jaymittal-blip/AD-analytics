@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   FileEdit, FileUp, Download, RefreshCw, CloudUpload,
   CheckCircle2, AlertCircle, Loader2, Plus, Link2Off, Clock,
+  Zap, Unplug,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -17,6 +18,7 @@ interface FormData {
 type StatusMsg = { ok: boolean; text: string } | null;
 interface SheetsStatus { oauthReady: boolean; connected: boolean; sheetConfig: { sheetId: string; lastSync: string | null } | null }
 interface AdMeta { platforms: string[]; adTypes: string[]; brands: string[]; categories: string[]; themes: string[]; audiences: string[] }
+interface MetaStatus { connected: boolean; account_name?: string; account_id?: string; error?: string }
 
 const FALLBACK_PLATFORMS = ["YouTube", "Meta", "Google", "Instagram", "TikTok", "X (Twitter)"];
 const FALLBACK_AD_TYPES  = ["Video Reel", "Static Carousel", "Image Post", "Story", "Search Ad", "Display Ad"];
@@ -119,6 +121,13 @@ export default function NewAdPage() {
   const [syncing,     setSyncing]     = useState(false);
   const [syncMsg,     setSyncMsg]     = useState<StatusMsg>(null);
 
+  // Meta Ads
+  const [metaStatus,    setMetaStatus]    = useState<MetaStatus | null>(null);
+  const [metaToken,     setMetaToken]     = useState("");
+  const [metaAccountId, setMetaAccountId] = useState("");
+  const [metaConnecting, setMetaConnecting] = useState(false);
+  const [metaMsg,       setMetaMsg]       = useState<StatusMsg>(null);
+
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     if (p.get("sheets_connected")) {
@@ -130,6 +139,7 @@ export default function NewAdPage() {
       window.history.replaceState({}, "", "/new-ad");
     }
     fetchSheetsStatus();
+    fetch("/api/meta/status").then(r => r.json()).then((d: MetaStatus) => setMetaStatus(d)).catch(() => {});
   }, []);
 
   const fetchSheetsStatus = useCallback(async () => {
@@ -239,6 +249,25 @@ export default function NewAdPage() {
     await fetch("/api/sheets/disconnect", { method: "POST" });
     await fetchSheetsStatus();
     setSyncMsg({ ok: true, text: "Google account disconnected." });
+  }
+
+  async function handleMetaConnect() {
+    setMetaConnecting(true); setMetaMsg(null);
+    try {
+      const r    = await fetch("/api/meta/connect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: metaToken, account_id: metaAccountId }) });
+      const data = await r.json();
+      if (data.error) throw new Error(data.error);
+      setMetaMsg({ ok: true, text: `Connected to "${data.account_name}" — Meta Ads actions are now enabled.` });
+      setMetaStatus({ connected: true, account_name: data.account_name, account_id: metaAccountId });
+      setMetaToken(""); setMetaAccountId("");
+    } catch (err) { setMetaMsg({ ok: false, text: String(err) }); }
+    finally      { setMetaConnecting(false); }
+  }
+
+  async function handleMetaDisconnect() {
+    await fetch("/api/meta/connect", { method: "DELETE" });
+    setMetaStatus({ connected: false });
+    setMetaMsg({ ok: true, text: "Meta Ads disconnected." });
   }
 
   const f = (k: keyof FormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -428,6 +457,62 @@ export default function NewAdPage() {
                     <Link2Off size={13} strokeWidth={1.75} />
                     Disconnect Google Account
                   </button>
+                )}
+              </div>
+            </section>
+
+            {/* Meta Ads Integration */}
+            <section className="bg-surface-container-lowest border border-outline-variant rounded-2xl overflow-hidden shadow-card">
+              <div className="px-5 py-4 border-b border-outline-variant bg-surface-container flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Zap size={18} strokeWidth={1.75} className="text-[#1877F2] shrink-0" />
+                  <h3 className="text-xl font-extrabold tracking-tight text-on-surface">Meta Ads</h3>
+                </div>
+                {metaStatus?.connected && (
+                  <span className="flex items-center gap-1 text-[11px] text-secondary font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
+                    Connected
+                  </span>
+                )}
+              </div>
+              <div className="p-4 space-y-3">
+                {metaStatus?.connected ? (
+                  <>
+                    <div className="bg-secondary-container/30 border border-secondary/20 rounded-xl px-3 py-2.5 text-[12px] text-on-secondary-container">
+                      <p className="font-semibold">{metaStatus.account_name}</p>
+                      <p className="text-on-surface-variant">act_{metaStatus.account_id} · Kill and Scale actions enabled</p>
+                    </div>
+                    <StatusBanner msg={metaMsg} />
+                    <button onClick={handleMetaDisconnect}
+                      className="w-full flex items-center justify-center gap-1.5 border border-outline-variant text-on-surface-variant py-1.5 rounded-xl text-[12px] hover:bg-surface-container transition-all">
+                      <Unplug size={13} strokeWidth={1.75} />
+                      Disconnect Meta Account
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="bg-surface-container rounded-xl p-3 text-[12px] text-on-surface-variant space-y-1">
+                      <p><span className="font-semibold text-on-surface">Required credentials:</span></p>
+                      <p>• <strong>Access Token</strong> — from Meta Business Manager → System Users → Generate Token (ads_management permission)</p>
+                      <p>• <strong>Ad Account ID</strong> — found in Meta Ads Manager (format: act_XXXXXXXXXX or just the number)</p>
+                    </div>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">Access Token</label>
+                        <Input type="password" placeholder="EAAxxxxxxxx…" value={metaToken} onChange={e => setMetaToken(e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">Ad Account ID</label>
+                        <Input placeholder="act_XXXXXXXXXX or just the number" value={metaAccountId} onChange={e => setMetaAccountId(e.target.value)} />
+                      </div>
+                    </div>
+                    <StatusBanner msg={metaMsg} />
+                    <button onClick={handleMetaConnect} disabled={metaConnecting || !metaToken.trim() || !metaAccountId.trim()}
+                      className="w-full flex items-center justify-center gap-2 bg-[#1877F2] text-white py-2 rounded-xl text-sm font-semibold hover:opacity-90 disabled:opacity-40 transition-all">
+                      {metaConnecting ? <Loader2 size={14} strokeWidth={2} className="animate-spin" /> : <Zap size={14} strokeWidth={2} />}
+                      {metaConnecting ? "Connecting…" : "Connect Meta Ads"}
+                    </button>
+                  </>
                 )}
               </div>
             </section>

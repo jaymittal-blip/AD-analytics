@@ -17,6 +17,7 @@ import {
   Info, CheckCircle2, AlertTriangle,
   TrendingUp, TrendingDown, HelpCircle,
   Download, Columns, ChevronLeft, ChevronRight,
+  StopCircle, TrendingUp as ScaleIcon, X, Loader2, AlertCircle, ExternalLink,
 } from "lucide-react";
 
 type SortKey =
@@ -104,6 +105,11 @@ function SuggestionTooltip({ reasons, warnings }: { reasons: string[]; warnings:
   );
 }
 
+type ActionModal =
+  | { type: "kill"; ad: Ad }
+  | { type: "scale"; ad: Ad; suggestion: ScaleSuggestion }
+  | null;
+
 export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads in this category." }: Props) {
   const { settings } = useSettings();
   const [sortKey,  setSortKey]  = useState<SortKey>("spend");
@@ -113,6 +119,10 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
   const [visible,  setVisible]  = useState<Set<ColKey>>(
     () => new Set(settings.visibleColumns as ColKey[])
   );
+  const [modal,        setModal]        = useState<ActionModal>(null);
+  const [actionMsg,    setActionMsg]    = useState<{ ok: boolean; text: string } | null>(null);
+  const [acting,       setActing]       = useState(false);
+  const [scaleInput,   setScaleInput]   = useState("");
 
   useMemo(() => {
     setVisible(new Set(settings.visibleColumns as ColKey[]));
@@ -135,6 +145,44 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
   }
 
   const showSuggestion = tab === "scale" || tab === "monitor" || tab === "testing";
+  const showActions    = tab === "kill"  || tab === "scale";
+
+  function openKill(ad: Ad) { setModal({ type: "kill", ad }); setActionMsg(null); }
+  function openScale(ad: Ad) {
+    const sg = suggestionMap.get(ad.ad_id) as ScaleSuggestion | undefined;
+    if (!sg) return;
+    const mid = Math.round((parseInt(sg.increaseRange.match(/\+(\d+)/)?.[1] ?? "10") + parseInt(sg.increaseRange.match(/–(\d+)/)?.[1] ?? "20")) / 2);
+    setScaleInput(String(mid));
+    setModal({ type: "scale", ad, suggestion: sg });
+    setActionMsg(null);
+  }
+  function closeModal() { setModal(null); setActionMsg(null); setActing(false); }
+
+  async function handlePause() {
+    if (!modal || modal.type !== "kill") return;
+    setActing(true); setActionMsg(null);
+    try {
+      const r    = await fetch("/api/meta/ad/pause", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ad_id: modal.ad.ad_id }) });
+      const data = await r.json();
+      if (data.error) throw new Error(data.error);
+      setActionMsg({ ok: true, text: `Ad ${modal.ad.ad_id} paused in Meta Ads.` });
+    } catch (err) { setActionMsg({ ok: false, text: String(err) }); }
+    finally { setActing(false); }
+  }
+
+  async function handleScale() {
+    if (!modal || modal.type !== "scale") return;
+    const pct = Number(scaleInput);
+    if (!pct || pct <= 0) { setActionMsg({ ok: false, text: "Enter a valid increase percentage." }); return; }
+    setActing(true); setActionMsg(null);
+    try {
+      const r    = await fetch("/api/meta/ad/scale", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ad_id: modal.ad.ad_id, increase_pct: pct }) });
+      const data = await r.json();
+      if (data.error) throw new Error(data.error);
+      setActionMsg({ ok: true, text: `Budget scaled +${pct}% on Ad Set "${data.adset_name}". Revisit in ${modal.suggestion.revisitDays} days.` });
+    } catch (err) { setActionMsg({ ok: false, text: String(err) }); }
+    finally { setActing(false); }
+  }
 
   const suggestionMap = useMemo(() => {
     if (!showSuggestion) return new Map<string, ScaleSuggestion | OutlookResult>();
@@ -278,6 +326,9 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
                   <InfoTooltip text={tab === "scale" ? SCALE_SUGGESTION_INFO : OUTLOOK_INFO} />
                 </th>
               )}
+              {showActions && (
+                <th className="px-5 py-3 font-semibold whitespace-nowrap text-left">Action</th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/40">
@@ -334,6 +385,30 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
                       </div>
                     </td>
                   );
+                })()}
+                {showActions && (() => {
+                  if (tab === "kill") return (
+                    <td className="px-4 py-3">
+                      <button onClick={() => openKill(ad)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-error/10 border border-error/20 text-error text-[11px] font-semibold rounded-lg hover:bg-error/20 transition-colors whitespace-nowrap">
+                        <StopCircle size={12} strokeWidth={2} />
+                        Pause in Meta
+                      </button>
+                    </td>
+                  );
+                  if (tab === "scale") {
+                    const sg = suggestionMap.get(ad.ad_id) as ScaleSuggestion | undefined;
+                    return (
+                      <td className="px-4 py-3">
+                        <button onClick={() => openScale(ad)} disabled={!sg}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/10 border border-secondary/20 text-secondary text-[11px] font-semibold rounded-lg hover:bg-secondary/20 disabled:opacity-40 transition-colors whitespace-nowrap">
+                          <ScaleIcon size={12} strokeWidth={2} />
+                          Scale Budget
+                        </button>
+                      </td>
+                    );
+                  }
+                  return <td />;
                 })()}
               </tr>
             ))}
@@ -399,6 +474,118 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
           </button>
         </div>
       </div>
+
+      {/* ── Action Modals ─────────────────────────────────────────────────── */}
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={closeModal}>
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-float w-full max-w-md mx-4 p-6 space-y-4" onClick={e => e.stopPropagation()}>
+
+            {/* Kill modal */}
+            {modal.type === "kill" && (
+              <>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-error/10 flex items-center justify-center shrink-0">
+                      <StopCircle size={16} strokeWidth={1.75} className="text-error" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-on-surface">Pause Ad in Meta</h3>
+                      <p className="text-[11px] text-on-surface-variant font-mono">{modal.ad.ad_id}</p>
+                    </div>
+                  </div>
+                  <button onClick={closeModal} className="p-1 rounded-lg hover:bg-surface-container text-on-surface-variant transition-colors"><X size={16} /></button>
+                </div>
+                <div className="bg-error/5 border border-error/20 rounded-xl px-4 py-3 text-[12px] text-on-surface-variant space-y-1">
+                  <p><strong className="text-on-surface">Ad:</strong> {modal.ad.creative_theme} · {modal.ad.platform}</p>
+                  <p><strong className="text-on-surface">Spend to date:</strong> ₹{(modal.ad.spend ?? 0).toLocaleString("en-IN")}</p>
+                  <p><strong className="text-on-surface">ROAS:</strong> {modal.ad.roas?.toFixed(1)}x — below kill threshold</p>
+                </div>
+                <p className="text-[12px] text-on-surface-variant">This will set the ad status to <strong>PAUSED</strong> via Meta Ads API. The action is reversible from your Meta Ads Manager.</p>
+                {actionMsg && (
+                  <div className={`flex items-start gap-2 px-3 py-2.5 rounded-xl border text-[12px] ${actionMsg.ok ? "bg-secondary-container/50 border-secondary/30 text-on-secondary-container" : "bg-error-container/30 border-error/20 text-error"}`}>
+                    {actionMsg.ok ? <CheckCircle2 size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" /> : <AlertCircle size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" />}
+                    <span>{actionMsg.text}
+                      {!actionMsg.ok && actionMsg.text.includes("not connected") && (
+                        <a href="/new-ad" className="ml-1 underline font-semibold inline-flex items-center gap-0.5">Connect now <ExternalLink size={10} /></a>
+                      )}
+                    </span>
+                  </div>
+                )}
+                {!actionMsg?.ok && (
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={closeModal} className="px-4 py-2 text-sm text-on-surface-variant border border-outline-variant rounded-xl hover:bg-surface-container transition-colors">Cancel</button>
+                    <button onClick={handlePause} disabled={acting}
+                      className="flex items-center gap-2 px-5 py-2 bg-error text-white text-sm font-semibold rounded-xl hover:opacity-90 disabled:opacity-50 transition-all">
+                      {acting ? <Loader2 size={14} strokeWidth={2} className="animate-spin" /> : <StopCircle size={14} strokeWidth={2} />}
+                      {acting ? "Pausing…" : "Pause Ad"}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Scale modal */}
+            {modal.type === "scale" && (
+              <>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center shrink-0">
+                      <ScaleIcon size={16} strokeWidth={1.75} className="text-secondary" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-on-surface">Scale Daily Budget</h3>
+                      <p className="text-[11px] text-on-surface-variant font-mono">{modal.ad.ad_id}</p>
+                    </div>
+                  </div>
+                  <button onClick={closeModal} className="p-1 rounded-lg hover:bg-surface-container text-on-surface-variant transition-colors"><X size={16} /></button>
+                </div>
+                <div className="bg-secondary/5 border border-secondary/20 rounded-xl px-4 py-3 text-[12px] text-on-surface-variant space-y-1">
+                  <p><strong className="text-on-surface">Ad:</strong> {modal.ad.creative_theme} · {modal.ad.platform}</p>
+                  <p><strong className="text-on-surface">ROAS:</strong> {modal.ad.roas?.toFixed(1)}x · <strong className="text-on-surface">Days running:</strong> {modal.ad.days_running}</p>
+                  <p><strong className="text-on-surface">Suggested:</strong> <span className="text-secondary font-semibold">{modal.suggestion.increaseRange} {modal.suggestion.metric}</span> · Revisit in {modal.suggestion.revisitDays} days</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">Increase Daily Budget by (%)</label>
+                  <div className="flex gap-2">
+                    <input type="number" min="1" max="200" value={scaleInput} onChange={e => setScaleInput(e.target.value)}
+                      className="flex-1 bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 text-sm font-mono text-on-surface focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none" />
+                    <span className="flex items-center text-sm text-on-surface-variant font-semibold px-2">%</span>
+                  </div>
+                  <div className="flex gap-1.5 flex-wrap mt-1">
+                    {[5, 10, 15, 20, 30, 50].map(v => (
+                      <button key={v} onClick={() => setScaleInput(String(v))}
+                        className={`px-2.5 py-1 rounded-full text-[11px] border transition-colors ${scaleInput === String(v) ? "bg-secondary-container border-secondary text-on-secondary-container" : "border-outline-variant text-on-surface-variant hover:border-secondary/50"}`}>
+                        +{v}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {actionMsg && (
+                  <div className={`flex items-start gap-2 px-3 py-2.5 rounded-xl border text-[12px] ${actionMsg.ok ? "bg-secondary-container/50 border-secondary/30 text-on-secondary-container" : "bg-error-container/30 border-error/20 text-error"}`}>
+                    {actionMsg.ok ? <CheckCircle2 size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" /> : <AlertCircle size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" />}
+                    <span>{actionMsg.text}
+                      {!actionMsg.ok && actionMsg.text.includes("not connected") && (
+                        <a href="/new-ad" className="ml-1 underline font-semibold inline-flex items-center gap-0.5">Connect now <ExternalLink size={10} /></a>
+                      )}
+                    </span>
+                  </div>
+                )}
+                {!actionMsg?.ok && (
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={closeModal} className="px-4 py-2 text-sm text-on-surface-variant border border-outline-variant rounded-xl hover:bg-surface-container transition-colors">Cancel</button>
+                    <button onClick={handleScale} disabled={acting || !scaleInput}
+                      className="flex items-center gap-2 px-5 py-2 bg-secondary text-on-secondary text-sm font-semibold rounded-xl hover:opacity-90 disabled:opacity-50 transition-all">
+                      {acting ? <Loader2 size={14} strokeWidth={2} className="animate-spin" /> : <ScaleIcon size={14} strokeWidth={2} />}
+                      {acting ? "Applying…" : `Apply +${scaleInput}%`}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
