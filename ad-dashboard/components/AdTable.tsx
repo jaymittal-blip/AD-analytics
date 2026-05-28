@@ -145,13 +145,20 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
   }
 
   const showSuggestion = tab === "scale" || tab === "monitor" || tab === "testing";
-  const showActions    = tab === "kill"  || tab === "scale";
+  const showActions    = tab === "kill" || tab === "scale" || tab === "monitor" || tab === "testing";
 
   function openKill(ad: Ad) { setModal({ type: "kill", ad }); setActionMsg(null); }
   function openScale(ad: Ad) {
-    const sg = suggestionMap.get(ad.ad_id) as ScaleSuggestion | undefined;
-    if (!sg) return;
-    const mid = Math.round((parseInt(sg.increaseRange.match(/\+(\d+)/)?.[1] ?? "10") + parseInt(sg.increaseRange.match(/–(\d+)/)?.[1] ?? "20")) / 2);
+    // Scale tab has ScaleSuggestion in the map; monitor/testing have OutlookResult — compute on the fly
+    const mapped = suggestionMap.get(ad.ad_id);
+    const sg: ScaleSuggestion =
+      mapped && "increaseRange" in mapped
+        ? (mapped as ScaleSuggestion)
+        : getScaleSuggestion(ad, allAds, settings.criteria);
+    const mid = Math.round(
+      (parseInt(sg.increaseRange.match(/\+(\d+)/)?.[1] ?? "10") +
+       parseInt(sg.increaseRange.match(/–(\d+)/)?.[1] ?? "20")) / 2
+    );
     setScaleInput(String(mid));
     setModal({ type: "scale", ad, suggestion: sg });
     setActionMsg(null);
@@ -386,30 +393,26 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
                     </td>
                   );
                 })()}
-                {showActions && (() => {
-                  if (tab === "kill") return (
-                    <td className="px-4 py-3">
-                      <button onClick={() => openKill(ad)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-error/10 border border-error/20 text-error text-[11px] font-semibold rounded-lg hover:bg-error/20 transition-colors whitespace-nowrap">
-                        <StopCircle size={12} strokeWidth={2} />
-                        Pause in Meta
-                      </button>
-                    </td>
-                  );
-                  if (tab === "scale") {
-                    const sg = suggestionMap.get(ad.ad_id) as ScaleSuggestion | undefined;
-                    return (
-                      <td className="px-4 py-3">
-                        <button onClick={() => openScale(ad)} disabled={!sg}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/10 border border-secondary/20 text-secondary text-[11px] font-semibold rounded-lg hover:bg-secondary/20 disabled:opacity-40 transition-colors whitespace-nowrap">
-                          <ScaleIcon size={12} strokeWidth={2} />
-                          Scale Budget
+                {showActions && (
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1.5">
+                      {(tab === "kill" || tab === "monitor" || tab === "testing") && (
+                        <button onClick={() => openKill(ad)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-error/10 border border-error/20 text-error text-[11px] font-semibold rounded-lg hover:bg-error/20 transition-colors whitespace-nowrap">
+                          <StopCircle size={12} strokeWidth={2} />
+                          Pause
                         </button>
-                      </td>
-                    );
-                  }
-                  return <td />;
-                })()}
+                      )}
+                      {(tab === "scale" || tab === "monitor" || tab === "testing") && (
+                        <button onClick={() => openScale(ad)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/10 border border-secondary/20 text-secondary text-[11px] font-semibold rounded-lg hover:bg-secondary/20 transition-colors whitespace-nowrap">
+                          <ScaleIcon size={12} strokeWidth={2} />
+                          Scale
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
