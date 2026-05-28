@@ -307,8 +307,10 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
                         <div className="relative group inline-flex flex-col gap-0.5 cursor-default">
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-sm font-bold text-secondary">{sg.increaseRange}</span>
+                            <span className="text-[11px] text-on-surface-variant">{sg.metric}</span>
                             <span className={`w-2 h-2 rounded-full shrink-0 ${CONFIDENCE_DOT[sg.confidence]}`} title={`${sg.confidence} confidence`} />
                           </div>
+                          <span className="text-[10px] text-on-surface-variant/70">Revisit in {sg.revisitDays} days</span>
                           <SuggestionTooltip reasons={sg.reasons} warnings={sg.warnings} />
                         </div>
                       </td>

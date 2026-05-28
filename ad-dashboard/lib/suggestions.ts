@@ -3,6 +3,8 @@ import { CriteriaMap, Rule } from "./settings";
 
 export interface ScaleSuggestion {
   increaseRange: string;
+  metric: string;
+  revisitDays: number;
   confidence: "high" | "medium" | "low";
   reasons: string[];
   warnings: string[];
@@ -99,11 +101,20 @@ export function getScaleSuggestion(ad: Ad, allAds: Ad[], criteria: CriteriaMap):
   hi = Math.max(hi, 2);
   lo = Math.min(lo, hi);
 
+  // Revisit period: how many days to run at new budget before re-evaluating
+  let revisitDays =
+    lo >= 30 ? 5 :
+    lo >= 15 ? 7 :
+    lo >= 5  ? 10 : 14;
+  if (ad.frequency > 2.5)       revisitDays = Math.max(3, revisitDays - 3);
+  else if (ad.frequency > 2.0)  revisitDays = Math.max(3, revisitDays - 1);
+  if (ad.days_running < 14)     revisitDays += 3;
+
   const dataPoints = wins.length + losses.length;
   const confidence: ScaleSuggestion["confidence"] =
     dataPoints >= 3 ? "high" : dataPoints >= 1 ? "medium" : "low";
 
-  return { increaseRange: `+${lo}–${hi}%`, confidence, reasons, warnings };
+  return { increaseRange: `+${lo}–${hi}%`, metric: "Daily Budget", revisitDays, confidence, reasons, warnings };
 }
 
 export function getOutlook(ad: Ad, allAds: Ad[], criteria: CriteriaMap): OutlookResult {
@@ -169,9 +180,11 @@ export function getOutlook(ad: Ad, allAds: Ad[], criteria: CriteriaMap): Outlook
 }
 
 export const SCALE_SUGGESTION_INFO =
-  "Suggested spend increase based on: ROAS headroom above your scale threshold, " +
+  "Suggested Daily Budget increase based on: ROAS headroom above your scale threshold, " +
   "current frequency (audience fatigue risk), days running (proof of stability), " +
   "and comparable ENDED_WIN/ENDED_LOSS ads with the same brand, creative theme, or audience. " +
+  "Revisit days = recommended window to run at the new budget before re-evaluating — " +
+  "shorter when scaling aggressively or frequency is high. " +
   "Confidence is higher when more comparable ended ads are available.";
 
 export const OUTLOOK_INFO =
