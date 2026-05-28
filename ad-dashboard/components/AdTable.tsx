@@ -228,22 +228,22 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
     if (!modal || modal.type !== "scale") return;
     const pct = Number(scaleInput);
     if (!pct || pct <= 0) { setActionMsg({ ok: false, text: "Enter a valid increase percentage." }); return; }
+
+    // Demo bypass — AD-0072 skips the real API entirely
+    if (modal.ad.ad_id === DEMO_AD_ID) {
+      setRevisit(modal.ad.ad_id, modal.ad.creative_theme, DEMO_REVISIT_MS, true);
+      setDemoCountdown(30);
+      setActionMsg({ ok: true, text: `Simulated scale +${pct}% applied.` });
+      return;
+    }
+
     setActing(true); setActionMsg(null);
     try {
       const r    = await fetch("/api/meta/ad/scale", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ad_id: modal.ad.ad_id, increase_pct: pct }) });
       const data = await r.json();
       if (data.error) throw new Error(data.error);
-
-      const isDemoMode = modal.ad.ad_id === DEMO_AD_ID;
-      const revisitMs  = isDemoMode ? DEMO_REVISIT_MS : modal.suggestion.revisitDays * 86_400_000;
-      setRevisit(modal.ad.ad_id, modal.ad.creative_theme, revisitMs, isDemoMode);
-
-      if (isDemoMode) {
-        setDemoCountdown(30);
-        setActionMsg({ ok: true, text: `Budget scaled +${pct}% on Ad Set "${data.adset_name}".` });
-      } else {
-        setActionMsg({ ok: true, text: `Budget scaled +${pct}% on Ad Set "${data.adset_name}". Revisit in ${modal.suggestion.revisitDays} days.` });
-      }
+      setRevisit(modal.ad.ad_id, modal.ad.creative_theme, modal.suggestion.revisitDays * 86_400_000, false);
+      setActionMsg({ ok: true, text: `Budget scaled +${pct}% on Ad Set "${data.adset_name}". Revisit in ${modal.suggestion.revisitDays} days.` });
     } catch (err) { setActionMsg({ ok: false, text: String(err) }); }
     finally { setActing(false); }
   }
@@ -638,13 +638,15 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
                     <div className="flex-1">
                       <span>{actionMsg.text}</span>
                       {actionMsg.ok && demoCountdown !== null && (
-                        <div className="mt-1.5 flex items-center gap-2">
-                          <span className={`font-mono font-bold text-sm ${demoCountdown > 0 ? "text-secondary" : "text-error"}`}>
-                            {demoCountdown > 0 ? `Revisit in ${demoCountdown}s` : "Revisit overdue!"}
-                          </span>
-                          <span className="text-[10px] bg-tertiary/10 text-tertiary border border-tertiary/20 px-2 py-0.5 rounded-full font-semibold">
-                            For testing purposes only
-                          </span>
+                        <div className="mt-1.5 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`font-mono font-bold text-sm ${demoCountdown > 0 ? "text-secondary" : "text-error animate-pulse"}`}>
+                              {demoCountdown > 0 ? `Revisit in ${demoCountdown}s` : "Revisit overdue!"}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-on-surface-variant/70 italic">
+                            Demo mode — Meta API bypassed · for testing purposes only
+                          </p>
                         </div>
                       )}
                       {!actionMsg.ok && actionMsg.text.includes("not connected") && (
