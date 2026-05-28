@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart2, Settings, Plus, Leaf } from "lucide-react";
+import { useEffect, useState } from "react";
+import { getDueSoonEntries } from "@/lib/revisitStore";
 
 const NAV = [
   { href: "/",         Icon: BarChart2, label: "Analytics"  },
@@ -11,6 +13,15 @@ const NAV = [
 
 export default function Sidebar() {
   const path = usePathname();
+  const [hasOverdue, setHasOverdue] = useState(false);
+
+  useEffect(() => {
+    function check() { setHasOverdue(getDueSoonEntries(0).length > 0); }
+    check();
+    window.addEventListener("revisit-updated", check);
+    const id = setInterval(check, 5_000);
+    return () => { window.removeEventListener("revisit-updated", check); clearInterval(id); };
+  }, []);
 
   return (
     <aside className="w-60 shrink-0 flex flex-col h-full bg-surface-container-lowest border-r border-outline-variant no-print">
@@ -42,7 +53,10 @@ export default function Sidebar() {
               }`}
             >
               <Icon size={18} strokeWidth={active ? 2.25 : 1.75} />
-              <span className="text-sm">{label}</span>
+              <span className="text-sm flex-1">{label}</span>
+              {href === "/" && hasOverdue && (
+                <span className="w-2 h-2 rounded-full bg-error shrink-0" title="Revisit reminders due" />
+              )}
             </Link>
           );
         })}

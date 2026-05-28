@@ -12,8 +12,12 @@ import SpendChart from "./charts/SpendChart";
 import DonutChart from "./charts/DonutChart";
 import OverallCard from "./charts/OverallCard";
 import {
-  Search, FileDown, RefreshCw, Info,
+  Search, FileDown, RefreshCw, Info, Bell, X as XIcon,
 } from "lucide-react";
+import {
+  getDueSoonEntries, getDueAdIds, dismissRevisit,
+  RevisitEntry,
+} from "@/lib/revisitStore";
 
 const TABS: { id: TabId; label: string; color: string }[] = [
   { id: "kill",    label: "Kill",    color: "text-error"           },
@@ -92,7 +96,7 @@ interface DashboardProps {
   fetchedAt: string;
 }
 
-function applyFilters(ads: Ad[], filters: Filters): Ad[] {
+function applyFilters(ads: Ad[], filters: Filters, revisitDueIds?: Set<string>): Ad[] {
   return ads.filter(ad => {
     if (filters.search) {
       const q = filters.search.toLowerCase();
@@ -116,6 +120,10 @@ function applyFilters(ads: Ad[], filters: Filters): Ad[] {
       if (filters.dateTo   && adStart > new Date(filters.dateTo))   return false;
       if (filters.dateFrom && adEnd   < new Date(filters.dateFrom)) return false;
     }
+
+    if (filters.revisitDue && revisitDueIds) {
+      if (!revisitDueIds.has(ad.ad_id)) return false;
+    }
     return true;
   });
 }
@@ -124,11 +132,13 @@ const POLL_INTERVAL_MS = 2 * 60 * 1000;
 
 export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetchedAt }: DashboardProps) {
   const { settings } = useSettings();
-  const [activeTab,  setActiveTab]  = useState<TabId>("kill");
-  const [filters,    setFilters]    = useState<Filters>(DEFAULT_FILTERS);
-  const [syncBadge,  setSyncBadge]  = useState<string | null>(null);
-  const [liveAds,    setLiveAds]    = useState<Ad[]>(initialAds);
-  const [fetchedAt,  setFetchedAt]  = useState(initialFetchedAt);
+  const [activeTab,      setActiveTab]      = useState<TabId>("kill");
+  const [filters,        setFilters]        = useState<Filters>(DEFAULT_FILTERS);
+  const [syncBadge,      setSyncBadge]      = useState<string | null>(null);
+  const [liveAds,        setLiveAds]        = useState<Ad[]>(initialAds);
+  const [fetchedAt,      setFetchedAt]      = useState(initialFetchedAt);
+  const [overdueEntries, setOverdueEntries] = useState<RevisitEntry[]>([]);
+  const [revisitDueIds,  setRevisitDueIds]  = useState<Set<string>>(new Set());
 
   const fetchFreshAds = useCallback(async () => {
     try {
@@ -163,6 +173,27 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
     return () => clearInterval(id);
   }, [pollAutoSync]);
 
+  // Overdue revisit banner — re-check every 2s so demo (30s) triggers promptly
+  useEffect(() => {
+    function syncOverdue() { setOverdueEntries(getDueSoonEntries(0)); }
+    syncOverdue();
+    window.addEventListener("revisit-updated", syncOverdue);
+    const id = setInterval(syncOverdue, 2_000);
+    return () => { window.removeEventListener("revisit-updated", syncOverdue); clearInterval(id); };
+  }, []);
+
+  // Revisit Due filter — recompute when window setting or entries change
+  useEffect(() => {
+    function compute() {
+      if (!filters.revisitDue) { setRevisitDueIds(new Set()); return; }
+      const windowMs = parseInt(filters.revisitDue) * 86_400_000;
+      setRevisitDueIds(getDueAdIds(windowMs));
+    }
+    compute();
+    window.addEventListener("revisit-updated", compute);
+    return () => window.removeEventListener("revisit-updated", compute);
+  }, [filters.revisitDue]);
+
   const ads = useMemo(() =>
     liveAds.map(ad => ({ ...ad, _class: classifyWithCriteria(ad, settings.criteria) })) as Ad[]
   , [liveAds, settings.criteria]);
@@ -176,7 +207,7 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
     return dates.length > 0 ? new Date(Math.max(...dates)) : new Date();
   }, [ads]);
 
-  const filteredAll    = useMemo(() => applyFilters(ads, filters), [ads, filters]);
+  const filteredAll    = useMemo(() => applyFilters(ads, filters, revisitDueIds), [ads, filters, revisitDueIds]);
   const filteredGroups = useMemo(() => groupAds(filteredAll),       [filteredAll]);
   const tabAds         = filteredGroups[activeTab];
 
@@ -246,6 +277,39 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
 
       <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
 
+        {/* Revisit overdue banner */}
+        {overdueEntries.length > 0 && (
+          <div className="bg-tertiary/10 border border-tertiary/30 rounded-xl px-4 py-3 flex items-start gap-3 no-print">
+            <Bell size={16} strokeWidth={1.75} className="text-tertiary mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-on-surface">
+                Revisit Reminder
+                <span className="ml-2 text-[11px] font-normal text-on-surface-variant">
+                  {overdueEntries.length} ad{overdueEntries.length !== 1 ? "s" : ""} past their revisit date
+                </span>
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {overdueEntries.map(e => (
+                  <div key={e.adId} className="flex items-center gap-1.5 bg-surface-container-lowest border border-tertiary/20 rounded-lg px-2.5 py-1">
+                    <span className="text-[11px] font-mono font-semibold text-on-surface">{e.adId}</span>
+                    <span className="text-[11px] text-on-surface-variant truncate max-w-[120px]" title={e.adName}>{e.adName}</span>
+                    {e.isDemoMode && (
+                      <span className="text-[9px] bg-tertiary/10 text-tertiary border border-tertiary/20 px-1 py-px rounded-full font-semibold">demo</span>
+                    )}
+                    <button
+                      onClick={() => dismissRevisit(e.adId)}
+                      title="Remind Off"
+                      className="ml-0.5 text-on-surface-variant/50 hover:text-error transition-colors"
+                    >
+                      <XIcon size={12} strokeWidth={2} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Tabs */}
         <nav className="flex items-center gap-0.5 border-b border-outline-variant pb-px no-print">
           {TABS.map(({ id, label, color }) => {
@@ -263,6 +327,9 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
               >
                 {label}
                 <span className={`text-xs ml-1 font-medium ${active ? "opacity-80" : "opacity-60"}`}>{count}</span>
+                {id === "scale" && overdueEntries.length > 0 && (
+                  <span className="absolute top-1.5 right-1 w-1.5 h-1.5 rounded-full bg-error" />
+                )}
               </button>
             );
           })}

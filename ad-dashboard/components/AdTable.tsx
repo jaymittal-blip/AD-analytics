@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Ad } from "@/lib/types";
 import { TabId } from "@/lib/types";
 import { fmtINR, fmtRoas, fmtPct, fmtNumber } from "@/lib/format";
@@ -13,12 +13,42 @@ import {
   ScaleSuggestion, OutlookResult,
 } from "@/lib/suggestions";
 import {
+  setRevisit, getRevisits, DEMO_AD_ID, DEMO_REVISIT_MS, RevisitEntry,
+} from "@/lib/revisitStore";
+import {
   ArrowDown, ArrowUp, ChevronsUpDown,
   Info, CheckCircle2, AlertTriangle,
   TrendingUp, TrendingDown, HelpCircle,
-  Download, Columns, ChevronLeft, ChevronRight,
-  StopCircle, TrendingUp as ScaleIcon, X, Loader2, AlertCircle, ExternalLink,
+  Columns, ChevronLeft, ChevronRight,
+  StopCircle, TrendingUp as ScaleIcon, X, Loader2, AlertCircle, ExternalLink, FlaskConical,
 } from "lucide-react";
+
+// Live countdown cell — only this component ticks every second for demo entries
+function RevisitCountdown({ entry }: { entry: RevisitEntry }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!entry.isDemoMode) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [entry.isDemoMode]);
+
+  const remaining = entry.scaledAt + entry.revisitMs - now;
+  if (remaining <= 0) {
+    return (
+      <span className="text-[10px] text-error font-semibold animate-pulse">Revisit overdue!</span>
+    );
+  }
+  if (entry.isDemoMode) {
+    const secs = Math.ceil(remaining / 1000);
+    return (
+      <span className="text-[10px] text-tertiary font-mono font-semibold">
+        Revisit in {secs}s · demo
+      </span>
+    );
+  }
+  const days = Math.ceil(remaining / 86_400_000);
+  return <span className="text-[10px] text-on-surface-variant/70">Revisit in {days}d</span>;
+}
 
 type SortKey =
   | "spend" | "roas" | "days_running" | "revenue" | "ctr"
@@ -119,15 +149,32 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
   const [visible,  setVisible]  = useState<Set<ColKey>>(
     () => new Set(settings.visibleColumns as ColKey[])
   );
-  const [modal,        setModal]        = useState<ActionModal>(null);
-  const [actionMsg,    setActionMsg]    = useState<{ ok: boolean; text: string } | null>(null);
-  const [acting,       setActing]       = useState(false);
-  const [scaleInput,   setScaleInput]   = useState("");
+  const [modal,          setModal]          = useState<ActionModal>(null);
+  const [actionMsg,      setActionMsg]      = useState<{ ok: boolean; text: string } | null>(null);
+  const [acting,         setActing]         = useState(false);
+  const [scaleInput,     setScaleInput]     = useState("");
+  const [demoCountdown,  setDemoCountdown]  = useState<number | null>(null);
+  const [revisitEntries, setRevisitEntries] = useState<RevisitEntry[]>([]);
 
   useMemo(() => {
     setVisible(new Set(settings.visibleColumns as ColKey[]));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.visibleColumns.join(",")]);
+
+  // Keep revisit entries in sync with localStorage
+  useEffect(() => {
+    function sync() { setRevisitEntries(getRevisits()); }
+    sync();
+    window.addEventListener("revisit-updated", sync);
+    return () => window.removeEventListener("revisit-updated", sync);
+  }, []);
+
+  // Demo countdown ticker
+  useEffect(() => {
+    if (demoCountdown === null || demoCountdown <= 0) return;
+    const id = setTimeout(() => setDemoCountdown(c => c! - 1), 1000);
+    return () => clearTimeout(id);
+  }, [demoCountdown]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === "desc" ? "asc" : "desc");
@@ -163,7 +210,7 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
     setModal({ type: "scale", ad, suggestion: sg });
     setActionMsg(null);
   }
-  function closeModal() { setModal(null); setActionMsg(null); setActing(false); }
+  function closeModal() { setModal(null); setActionMsg(null); setActing(false); setDemoCountdown(null); }
 
   async function handlePause() {
     if (!modal || modal.type !== "kill") return;
@@ -186,7 +233,17 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
       const r    = await fetch("/api/meta/ad/scale", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ad_id: modal.ad.ad_id, increase_pct: pct }) });
       const data = await r.json();
       if (data.error) throw new Error(data.error);
-      setActionMsg({ ok: true, text: `Budget scaled +${pct}% on Ad Set "${data.adset_name}". Revisit in ${modal.suggestion.revisitDays} days.` });
+
+      const isDemoMode = modal.ad.ad_id === DEMO_AD_ID;
+      const revisitMs  = isDemoMode ? DEMO_REVISIT_MS : modal.suggestion.revisitDays * 86_400_000;
+      setRevisit(modal.ad.ad_id, modal.ad.creative_theme, revisitMs, isDemoMode);
+
+      if (isDemoMode) {
+        setDemoCountdown(30);
+        setActionMsg({ ok: true, text: `Budget scaled +${pct}% on Ad Set "${data.adset_name}".` });
+      } else {
+        setActionMsg({ ok: true, text: `Budget scaled +${pct}% on Ad Set "${data.adset_name}". Revisit in ${modal.suggestion.revisitDays} days.` });
+      }
     } catch (err) { setActionMsg({ ok: false, text: String(err) }); }
     finally { setActing(false); }
   }
@@ -360,6 +417,7 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
                   if (!s) return <td className="px-5 py-3" />;
                   if (tab === "scale") {
                     const sg = s as ScaleSuggestion;
+                    const revisitEntry = revisitEntries.find(e => e.adId === ad.ad_id && !e.dismissed);
                     return (
                       <td className="px-5 py-3">
                         <div className="relative group inline-flex flex-col gap-0.5 cursor-default">
@@ -368,7 +426,10 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
                             <span className="text-[11px] text-on-surface-variant">{sg.metric}</span>
                             <span className={`w-2 h-2 rounded-full shrink-0 ${CONFIDENCE_DOT[sg.confidence]}`} title={`${sg.confidence} confidence`} />
                           </div>
-                          <span className="text-[10px] text-on-surface-variant/70">Revisit in {sg.revisitDays} days</span>
+                          {revisitEntry
+                            ? <RevisitCountdown entry={revisitEntry} />
+                            : <span className="text-[10px] text-on-surface-variant/70">Revisit in {sg.revisitDays} days</span>
+                          }
                           <SuggestionTooltip reasons={sg.reasons} warnings={sg.warnings} />
                         </div>
                       </td>
@@ -537,7 +598,15 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-on-surface">Scale Daily Budget</h3>
-                      <p className="text-[11px] text-on-surface-variant font-mono">{modal.ad.ad_id}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <p className="text-[11px] text-on-surface-variant font-mono">{modal.ad.ad_id}</p>
+                        {modal.ad.ad_id === DEMO_AD_ID && (
+                          <span className="inline-flex items-center gap-1 text-[10px] bg-tertiary/10 text-tertiary border border-tertiary/20 px-1.5 py-0.5 rounded-full font-semibold">
+                            <FlaskConical size={9} strokeWidth={2} />
+                            Demo · Countdown = 30 sec
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <button onClick={closeModal} className="p-1 rounded-lg hover:bg-surface-container text-on-surface-variant transition-colors"><X size={16} /></button>
@@ -566,11 +635,22 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
                 {actionMsg && (
                   <div className={`flex items-start gap-2 px-3 py-2.5 rounded-xl border text-[12px] ${actionMsg.ok ? "bg-secondary-container/50 border-secondary/30 text-on-secondary-container" : "bg-error-container/30 border-error/20 text-error"}`}>
                     {actionMsg.ok ? <CheckCircle2 size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" /> : <AlertCircle size={13} strokeWidth={1.75} className="mt-0.5 shrink-0" />}
-                    <span>{actionMsg.text}
+                    <div className="flex-1">
+                      <span>{actionMsg.text}</span>
+                      {actionMsg.ok && demoCountdown !== null && (
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <span className={`font-mono font-bold text-sm ${demoCountdown > 0 ? "text-secondary" : "text-error"}`}>
+                            {demoCountdown > 0 ? `Revisit in ${demoCountdown}s` : "Revisit overdue!"}
+                          </span>
+                          <span className="text-[10px] bg-tertiary/10 text-tertiary border border-tertiary/20 px-2 py-0.5 rounded-full font-semibold">
+                            For testing purposes only
+                          </span>
+                        </div>
+                      )}
                       {!actionMsg.ok && actionMsg.text.includes("not connected") && (
                         <a href="/new-ad" className="ml-1 underline font-semibold inline-flex items-center gap-0.5">Connect now <ExternalLink size={10} /></a>
                       )}
-                    </span>
+                    </div>
                   </div>
                 )}
                 {!actionMsg?.ok && (

@@ -1,22 +1,32 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Calendar, ChevronDown, X } from "lucide-react";
+import { Calendar, ChevronDown, X, Clock } from "lucide-react";
+import { getRevisits } from "@/lib/revisitStore";
 
 export interface Filters {
-  search:     string;
-  dateFrom:   string;
-  dateTo:     string;
-  datePreset: string;
-  platform:   string;
-  brand:      string;
-  theme:      string;
+  search:      string;
+  dateFrom:    string;
+  dateTo:      string;
+  datePreset:  string;
+  platform:    string;
+  brand:       string;
+  theme:       string;
+  revisitDue:  string;  // "" | "1" | "2" | "3" | "7"
 }
 
 export const DEFAULT_FILTERS: Filters = {
   search: "", dateFrom: "", dateTo: "", datePreset: "All Time",
-  platform: "", brand: "", theme: "",
+  platform: "", brand: "", theme: "", revisitDue: "",
 };
+
+const REVISIT_OPTS = [
+  { label: "Revisit Due",      value: ""  },
+  { label: "Within 1 day",     value: "1" },
+  { label: "Within 2 days",    value: "2" },
+  { label: "Within 3 days",    value: "3" },
+  { label: "Within 7 days",    value: "7" },
+];
 
 const PRESETS = [
   { label: "All Time",     days: 0  },
@@ -72,11 +82,23 @@ export default function FilterBar({ filters, platforms, brands, themes, maxDate,
   const [platformOpen, setPlatformOpen] = useState(false);
   const [brandOpen,    setBrandOpen]    = useState(false);
   const [themeOpen,    setThemeOpen]    = useState(false);
+  const [revisitOpen,  setRevisitOpen]  = useState(false);
+  const [hasRevisits,  setHasRevisits]  = useState(false);
 
   const dateRef     = useRef<HTMLDivElement>(null!);
   const platformRef = useRef<HTMLDivElement>(null!);
   const brandRef    = useRef<HTMLDivElement>(null!);
   const themeRef    = useRef<HTMLDivElement>(null!);
+  const revisitRef  = useRef<HTMLDivElement>(null!);
+
+  useEffect(() => {
+    function checkRevisits() {
+      setHasRevisits(getRevisits().some(e => !e.dismissed));
+    }
+    checkRevisits();
+    window.addEventListener("revisit-updated", checkRevisits);
+    return () => window.removeEventListener("revisit-updated", checkRevisits);
+  }, []);
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -84,6 +106,7 @@ export default function FilterBar({ filters, platforms, brands, themes, maxDate,
       if (platformRef.current && !platformRef.current.contains(e.target as Node)) setPlatformOpen(false);
       if (brandRef.current    && !brandRef.current.contains(e.target as Node))    setBrandOpen(false);
       if (themeRef.current    && !themeRef.current.contains(e.target as Node))    setThemeOpen(false);
+      if (revisitRef.current  && !revisitRef.current.contains(e.target as Node))  setRevisitOpen(false);
     }
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -104,7 +127,7 @@ export default function FilterBar({ filters, platforms, brands, themes, maxDate,
     }
   }
 
-  const hasFilter = !!(filters.platform || filters.brand || filters.theme || filters.dateFrom);
+  const hasFilter = !!(filters.platform || filters.brand || filters.theme || filters.dateFrom || filters.revisitDue);
 
   function clear() {
     onChange({ ...DEFAULT_FILTERS, search: filters.search });
@@ -185,6 +208,32 @@ export default function FilterBar({ filters, platforms, brands, themes, maxDate,
           ))}
         </div>
       </Dropdown>
+
+      {/* Revisit Due — only show when there are active revisit schedules */}
+      {hasRevisits && (
+        <Dropdown
+          label={filters.revisitDue ? (REVISIT_OPTS.find(o => o.value === filters.revisitDue)?.label ?? "Revisit Due") : "Revisit Due"}
+          open={revisitOpen}
+          onToggle={() => setRevisitOpen(!revisitOpen)}
+          containerRef={revisitRef}
+        >
+          <div className="py-1 min-w-[160px]">
+            <div className="flex items-center gap-1.5 px-4 py-1.5 text-[10px] uppercase tracking-widest text-on-surface-variant/60 font-semibold">
+              <Clock size={11} strokeWidth={1.75} />
+              Revisit Window
+            </div>
+            {REVISIT_OPTS.map(({ label, value }) => (
+              <button
+                key={value || "__off__"}
+                onClick={() => { onChange({ ...filters, revisitDue: value }); setRevisitOpen(false); }}
+                className={optionCls(filters.revisitDue === value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </Dropdown>
+      )}
 
       {hasFilter && (
         <button onClick={clear} className="flex items-center gap-1 text-on-surface-variant text-[11px] font-semibold px-2 hover:text-error transition-colors">
