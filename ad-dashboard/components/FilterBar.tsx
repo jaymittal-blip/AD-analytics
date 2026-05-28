@@ -180,9 +180,12 @@ export default function FilterBar({ filters, platforms, brands, themes, maxDate,
       <Dropdown label={filters.platform || "All Platforms"} open={platformOpen} onToggle={() => setPlatformOpen(!platformOpen)} containerRef={platformRef}>
         <div className="py-1">
           {filters.platform && (
-            <button onClick={() => { onChange({ ...filters, platform: "" }); setPlatformOpen(false); }} className={optionCls(false) + " text-on-surface-variant italic"}>
-              All Platforms
-            </button>
+            <>
+              <button onClick={() => { onChange({ ...filters, platform: "" }); setPlatformOpen(false); }} className="w-full text-left px-4 py-1.5 text-xs text-on-surface-variant italic hover:bg-surface-container transition-colors">
+                ← All Platforms
+              </button>
+              <div className="border-t border-outline-variant/40 my-1" />
+            </>
           )}
           {platforms.map((p) => (
             <button key={p} onClick={() => { onChange({ ...filters, platform: p }); setPlatformOpen(false); }} className={optionCls(filters.platform === p)}>
@@ -196,9 +199,12 @@ export default function FilterBar({ filters, platforms, brands, themes, maxDate,
       <Dropdown label={filters.brand || "All Brands"} open={brandOpen} onToggle={() => setBrandOpen(!brandOpen)} containerRef={brandRef}>
         <div className="py-1 max-h-56 overflow-y-auto">
           {filters.brand && (
-            <button onClick={() => { onChange({ ...filters, brand: "" }); setBrandOpen(false); }} className={optionCls(false) + " text-on-surface-variant italic"}>
-              All Brands
-            </button>
+            <>
+              <button onClick={() => { onChange({ ...filters, brand: "" }); setBrandOpen(false); }} className="w-full text-left px-4 py-1.5 text-xs text-on-surface-variant italic hover:bg-surface-container transition-colors">
+                ← All Brands
+              </button>
+              <div className="border-t border-outline-variant/40 my-1" />
+            </>
           )}
           {brands.map((b) => (
             <button key={b} onClick={() => { onChange({ ...filters, brand: b }); setBrandOpen(false); }} className={optionCls(filters.brand === b)}>
@@ -212,9 +218,12 @@ export default function FilterBar({ filters, platforms, brands, themes, maxDate,
       <Dropdown label={filters.theme || "All Themes"} open={themeOpen} onToggle={() => setThemeOpen(!themeOpen)} containerRef={themeRef}>
         <div className="py-1 max-h-56 overflow-y-auto">
           {filters.theme && (
-            <button onClick={() => { onChange({ ...filters, theme: "" }); setThemeOpen(false); }} className={optionCls(false) + " text-on-surface-variant italic"}>
-              All Themes
-            </button>
+            <>
+              <button onClick={() => { onChange({ ...filters, theme: "" }); setThemeOpen(false); }} className="w-full text-left px-4 py-1.5 text-xs text-on-surface-variant italic hover:bg-surface-container transition-colors">
+                ← All Themes
+              </button>
+              <div className="border-t border-outline-variant/40 my-1" />
+            </>
           )}
           {themes.map((t) => (
             <button key={t} onClick={() => { onChange({ ...filters, theme: t }); setThemeOpen(false); }} className={optionCls(filters.theme === t)}>

@@ -778,22 +778,30 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
                 )}
 
                 {!actionMsg?.ok && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <button onClick={handleNextActionKill} disabled={acting}
-                      className="flex flex-col items-center gap-1.5 px-4 py-4 bg-error/5 border border-error/20 text-error rounded-xl hover:bg-error/10 disabled:opacity-50 transition-all">
-                      {acting
-                        ? <Loader2 size={20} strokeWidth={1.75} className="animate-spin" />
-                        : <StopCircle size={20} strokeWidth={1.75} />}
-                      <span className="text-sm font-bold">Kill Ad</span>
-                      <span className="text-[10px] text-center text-on-surface-variant leading-tight">Pause on Meta + move to Ended</span>
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button onClick={handleNextActionKill} disabled={acting}
+                        className="flex flex-col items-center gap-1.5 px-4 py-4 bg-error/5 border border-error/20 text-error rounded-xl hover:bg-error/10 disabled:opacity-50 transition-all">
+                        {acting
+                          ? <Loader2 size={20} strokeWidth={1.75} className="animate-spin" />
+                          : <StopCircle size={20} strokeWidth={1.75} />}
+                        <span className="text-sm font-bold">Kill Ad</span>
+                        <span className="text-[10px] text-center text-on-surface-variant leading-tight">Pause on Meta + move to Ended</span>
+                      </button>
+                      <button onClick={handleNextActionScaleAgain} disabled={acting}
+                        className="flex flex-col items-center gap-1.5 px-4 py-4 bg-secondary/5 border border-secondary/20 text-secondary rounded-xl hover:bg-secondary/10 disabled:opacity-50 transition-all">
+                        <ScaleIcon size={20} strokeWidth={1.75} />
+                        <span className="text-sm font-bold">Scale Again</span>
+                        <span className="text-[10px] text-center text-on-surface-variant leading-tight">Reset timer + scale budget again</span>
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => { clearRevisit(modal.ad.ad_id); closeModal(); }}
+                      className="w-full text-center text-[11px] text-on-surface-variant/60 hover:text-on-surface-variant transition-colors pt-1"
+                    >
+                      Cancel revisit — reset to Scale
                     </button>
-                    <button onClick={handleNextActionScaleAgain} disabled={acting}
-                      className="flex flex-col items-center gap-1.5 px-4 py-4 bg-secondary/5 border border-secondary/20 text-secondary rounded-xl hover:bg-secondary/10 disabled:opacity-50 transition-all">
-                      <ScaleIcon size={20} strokeWidth={1.75} />
-                      <span className="text-sm font-bold">Scale Again</span>
-                      <span className="text-[10px] text-center text-on-surface-variant leading-tight">Reset timer + scale budget again</span>
-                    </button>
-                  </div>
+                  </>
                 )}
               </>
             )}
