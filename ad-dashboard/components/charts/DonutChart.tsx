@@ -14,8 +14,11 @@ interface Props {
 export default function DonutChart({ title, rows }: Props) {
   const [hovered, setHovered] = useState<{ key: string; val: number } | null>(null);
 
-  const top6  = rows.slice(0, 6);
-  const total = rows.reduce((s, [, v]) => s + v, 0);
+  // Top 5 + aggregate the rest as "Other"
+  const top5      = rows.slice(0, 5);
+  const otherSum  = rows.slice(5).reduce((s, [, v]) => s + v, 0);
+  const display5  = otherSum > 0 ? [...top5, ["Other", otherSum] as [string, number]] : top5;
+  const total     = rows.reduce((s, [, v]) => s + v, 0);
 
   const R             = 54;
   const cx            = 64;
@@ -23,7 +26,7 @@ export default function DonutChart({ title, rows }: Props) {
   const circumference = 2 * Math.PI * R;
 
   let accumulated = 0;
-  const segments = top6.map(([key, val], i) => {
+  const segments = display5.map(([key, val], i) => {
     const pct  = total > 0 ? val / total : 0;
     const dash = pct * circumference;
     const seg  = {
@@ -31,7 +34,7 @@ export default function DonutChart({ title, rows }: Props) {
       val,
       dash,
       offset: circumference - accumulated,
-      color:  COLORS[i % COLORS.length],
+      color:  key === "Other" ? "#C8C2B4" : COLORS[i % COLORS.length],
     };
     accumulated += dash;
     return seg;
@@ -88,11 +91,6 @@ export default function DonutChart({ title, rows }: Props) {
             <span className="text-[11px] text-on-surface-variant truncate" title={s.key}>{s.key}</span>
           </div>
         ))}
-        {rows.length > 6 && (
-          <div className="col-span-2 text-[10px] text-on-surface-variant/50 px-1.5 pt-0.5">
-            +{rows.length - 6} more narratives not shown
-          </div>
-        )}
       </div>
     </div>
   );
