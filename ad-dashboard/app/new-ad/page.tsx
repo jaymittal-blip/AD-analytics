@@ -148,6 +148,8 @@ export default function NewAdPage() {
     setSheetStatus(d);
     if (d.sheetConfig?.sheetId && d.sheetConfig.sheetId !== "apps-script") {
       setSheetUrl(`https://docs.google.com/spreadsheets/d/${d.sheetConfig.sheetId}/edit`);
+    } else {
+      setSheetUrl("");
     }
     await cr.json();
   }, []);

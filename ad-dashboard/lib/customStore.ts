@@ -151,9 +151,8 @@ export async function readTokens(): Promise<GoogleTokens | null> {
   if (process.env.DATABASE_URL) {
     try {
       const { getAppSetting } = await import("./usersRepo");
-      const t = await getAppSetting<GoogleTokens>("google_tokens");
-      if (t) return t;
-    } catch { /* fall through */ }
+      return await getAppSetting<GoogleTokens>("google_tokens"); // trust DB result, including null
+    } catch { return null; }
   }
   try {
     ensureFile(TOKENS_PATH, "null");
@@ -186,9 +185,8 @@ export async function readSheetConfig(): Promise<SheetConfig | null> {
   if (process.env.DATABASE_URL) {
     try {
       const { getAppSetting } = await import("./usersRepo");
-      const cfg = await getAppSetting<SheetConfig>("sheet_config");
-      if (cfg) return cfg;
-    } catch { /* fall through */ }
+      return await getAppSetting<SheetConfig>("sheet_config"); // trust DB result, including null
+    } catch { return null; }
   }
   try {
     ensureFile(SHEET_PATH, "null");
