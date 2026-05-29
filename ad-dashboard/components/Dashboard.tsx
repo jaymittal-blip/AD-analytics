@@ -143,7 +143,7 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
 
   const fetchFreshAds = useCallback(async () => {
     try {
-      const res  = await fetch("/api/ads");
+      const res  = await fetch("/api/ads", { cache: "no-store" });
       const data = await res.json() as { ads: Ad[]; fetchedAt: string };
       if (Array.isArray(data.ads)) {
         setLiveAds(data.ads);
@@ -197,7 +197,7 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
 
   // Load DB status overrides (e.g. killed ads marked as ENDED)
   useEffect(() => {
-    fetch("/api/ads/status-overrides")
+    fetch("/api/ads/status-overrides", { cache: "no-store" })
       .then(r => r.json())
       .then((d: { overrides: Record<string, string> }) => setStatusOverrides(d.overrides ?? {}))
       .catch(() => {});
