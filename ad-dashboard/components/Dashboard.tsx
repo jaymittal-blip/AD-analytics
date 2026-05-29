@@ -154,10 +154,11 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
 
   const pollAutoSync = useCallback(async () => {
     try {
-      const res  = await fetch("/api/sheets/auto-sync");
+      const res  = await fetch("/api/sheets/auto-sync", { cache: "no-store" });
       const data = await res.json() as { synced: boolean; added?: number; updated?: number; total?: number };
+      // Always refresh from DB after every sync attempt — ensures latest data regardless of sheet changes
+      await fetchFreshAds();
       if (data.synced) {
-        await fetchFreshAds();
         const added   = data.added   ?? 0;
         const updated = data.updated ?? 0;
         if (added + updated > 0) {
@@ -168,16 +169,13 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
     } catch { /* silent */ }
   }, [fetchFreshAds]);
 
-  // If no server-side data, fetch immediately on mount
+  // On mount: fetch current DB data immediately, then sync sheet in background
   useEffect(() => {
-    if (initialAds.length === 0) fetchFreshAds();
-  }, []);
-
-  useEffect(() => {
-    pollAutoSync();
+    fetchFreshAds();         // show current data right away
+    pollAutoSync();          // sync sheet → update DB → re-fetch (runs in parallel)
     const id = setInterval(pollAutoSync, POLL_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [pollAutoSync]);
+  }, []);
 
   // Overdue revisit banner — re-check every 2s so demo (30s) triggers promptly
   useEffect(() => {
