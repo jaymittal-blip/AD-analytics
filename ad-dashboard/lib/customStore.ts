@@ -2,28 +2,37 @@ import fs from "fs";
 import path from "path";
 import { Ad } from "./types";
 
-// ── File-based fallback paths (used when DATABASE_URL is not set) ─────────────
+// Local file paths — used only when DATABASE_URL is not set (local dev)
 const STORE_PATH  = path.join(process.cwd(), "data", "custom-ads.json");
 const TOKENS_PATH = path.join(process.cwd(), "data", "google-tokens.json");
 const SHEET_PATH  = path.join(process.cwd(), "data", "sheets-config.json");
 
-function ensureFile(p: string, def: string) {
-  const dir = path.dirname(p);
+function ensureFile(filePath: string, defaultContent: string) {
+  const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  if (!fs.existsSync(p))   fs.writeFileSync(p, def);
+  if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, defaultContent);
+}
+
+function readJsonFile<T>(filePath: string, fallback: T): T {
+  ensureFile(filePath, JSON.stringify(fallback));
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf-8")) as T;
+  } catch {
+    return fallback;
+  }
 }
 
 const USE_DB = Boolean(process.env.DATABASE_URL);
 
-// ── Custom ads: Neon when DATABASE_URL is set, JSON file otherwise ────────────
+// ── Custom ads ────────────────────────────────────────────────────────────────
+
 export async function readCustomAds(): Promise<Ad[]> {
   if (USE_DB) {
     const { sql } = await import("./db");
     const rows = await sql`SELECT * FROM ads WHERE source != 'api' ORDER BY created_at DESC`;
     return rows.map(r => rowToAd(r));
   }
-  ensureFile(STORE_PATH, "[]");
-  try { return JSON.parse(fs.readFileSync(STORE_PATH, "utf-8")); } catch { return []; }
+  return readJsonFile<Ad[]>(STORE_PATH, []);
 }
 
 export async function upsertCustomAds(
@@ -54,38 +63,37 @@ export async function upsertCustomAds(
           ${source}, ${new Date().toISOString()}
         )
         ON CONFLICT (ad_id) DO UPDATE SET
-          platform            = EXCLUDED.platform,
-          brand               = EXCLUDED.brand,
-          category            = EXCLUDED.category,
-          ad_type             = EXCLUDED.ad_type,
-          target_audience     = EXCLUDED.target_audience,
-          creative_theme      = EXCLUDED.creative_theme,
-          status              = EXCLUDED.status,
-          start_date          = EXCLUDED.start_date,
-          days_running        = EXCLUDED.days_running,
-          spend               = EXCLUDED.spend,
-          impressions         = EXCLUDED.impressions,
-          clicks              = EXCLUDED.clicks,
-          ctr                 = EXCLUDED.ctr,
-          conversions         = EXCLUDED.conversions,
-          revenue             = EXCLUDED.revenue,
-          roas                = EXCLUDED.roas,
-          cpc                 = EXCLUDED.cpc,
-          cpa                 = EXCLUDED.cpa,
-          creative_score      = EXCLUDED.creative_score,
-          landing_page_score  = EXCLUDED.landing_page_score,
-          frequency           = EXCLUDED.frequency,
+          platform              = EXCLUDED.platform,
+          brand                 = EXCLUDED.brand,
+          category              = EXCLUDED.category,
+          ad_type               = EXCLUDED.ad_type,
+          target_audience       = EXCLUDED.target_audience,
+          creative_theme        = EXCLUDED.creative_theme,
+          status                = EXCLUDED.status,
+          start_date            = EXCLUDED.start_date,
+          days_running          = EXCLUDED.days_running,
+          spend                 = EXCLUDED.spend,
+          impressions           = EXCLUDED.impressions,
+          clicks                = EXCLUDED.clicks,
+          ctr                   = EXCLUDED.ctr,
+          conversions           = EXCLUDED.conversions,
+          revenue               = EXCLUDED.revenue,
+          roas                  = EXCLUDED.roas,
+          cpc                   = EXCLUDED.cpc,
+          cpa                   = EXCLUDED.cpa,
+          creative_score        = EXCLUDED.creative_score,
+          landing_page_score    = EXCLUDED.landing_page_score,
+          frequency             = EXCLUDED.frequency,
           video_completion_rate = EXCLUDED.video_completion_rate,
-          source              = EXCLUDED.source,
-          updated_at          = EXCLUDED.updated_at
+          source                = EXCLUDED.source,
+          updated_at            = EXCLUDED.updated_at
       `;
     }
     return { added, updated };
   }
 
   // JSON file fallback
-  ensureFile(STORE_PATH, "[]");
-  const existing: Ad[] = (() => { try { return JSON.parse(fs.readFileSync(STORE_PATH, "utf-8")); } catch { return []; } })();
+  const existing = readJsonFile<Ad[]>(STORE_PATH, []);
   const map = new Map(existing.map(a => [a.ad_id, a]));
   let added = 0, updated = 0;
   for (const ad of incoming) {
@@ -102,12 +110,12 @@ export async function deleteCustomAd(ad_id: string): Promise<void> {
     await sql`DELETE FROM ads WHERE ad_id = ${ad_id}`;
     return;
   }
-  ensureFile(STORE_PATH, "[]");
-  const existing: Ad[] = (() => { try { return JSON.parse(fs.readFileSync(STORE_PATH, "utf-8")); } catch { return []; } })();
+  const existing = readJsonFile<Ad[]>(STORE_PATH, []);
   fs.writeFileSync(STORE_PATH, JSON.stringify(existing.filter(a => a.ad_id !== ad_id), null, 2));
 }
 
 // ── Row mapper ────────────────────────────────────────────────────────────────
+
 function rowToAd(r: Record<string, unknown>): Ad {
   return {
     ad_id:                String(r.ad_id),
@@ -138,8 +146,9 @@ function rowToAd(r: Record<string, unknown>): Ad {
 }
 
 // ── Google OAuth tokens ───────────────────────────────────────────────────────
-// DB-first (survives Vercel cold starts / read-only file system).
-// File is used as local-dev fallback only and wrapped in try/catch.
+// DB is the source of truth on Vercel (read-only file system at runtime).
+// File is used only for local dev when DATABASE_URL is not set.
+
 export interface GoogleTokens {
   access_token:  string;
   refresh_token: string;
@@ -151,13 +160,12 @@ export async function readTokens(): Promise<GoogleTokens | null> {
   if (process.env.DATABASE_URL) {
     try {
       const { getAppSetting } = await import("./usersRepo");
-      return await getAppSetting<GoogleTokens>("google_tokens"); // trust DB result, including null
-    } catch { return null; }
+      return await getAppSetting<GoogleTokens>("google_tokens");
+    } catch {
+      return null;
+    }
   }
-  try {
-    ensureFile(TOKENS_PATH, "null");
-    return JSON.parse(fs.readFileSync(TOKENS_PATH, "utf-8"));
-  } catch { return null; }
+  return readJsonFile<GoogleTokens | null>(TOKENS_PATH, null);
 }
 
 export async function writeTokens(t: GoogleTokens): Promise<void> {
@@ -166,7 +174,10 @@ export async function writeTokens(t: GoogleTokens): Promise<void> {
     await setAppSetting("google_tokens", t);
     return;
   }
-  try { ensureFile(TOKENS_PATH, "null"); fs.writeFileSync(TOKENS_PATH, JSON.stringify(t, null, 2)); } catch { /* read-only fs */ }
+  try {
+    ensureFile(TOKENS_PATH, "null");
+    fs.writeFileSync(TOKENS_PATH, JSON.stringify(t, null, 2));
+  } catch { /* read-only file system (Vercel) */ }
 }
 
 export async function clearTokens(): Promise<void> {
@@ -175,23 +186,30 @@ export async function clearTokens(): Promise<void> {
     await setAppSetting("google_tokens", null);
     return;
   }
-  try { ensureFile(TOKENS_PATH, "null"); fs.writeFileSync(TOKENS_PATH, "null"); } catch { /* read-only fs */ }
+  try {
+    ensureFile(TOKENS_PATH, "null");
+    fs.writeFileSync(TOKENS_PATH, "null");
+  } catch { /* read-only file system (Vercel) */ }
 }
 
 // ── Sheet config ──────────────────────────────────────────────────────────────
-export interface SheetConfig { sheetId: string; sheetName: string; lastSync: string | null }
+
+export interface SheetConfig {
+  sheetId:   string;
+  sheetName: string;
+  lastSync:  string | null;
+}
 
 export async function readSheetConfig(): Promise<SheetConfig | null> {
   if (process.env.DATABASE_URL) {
     try {
       const { getAppSetting } = await import("./usersRepo");
-      return await getAppSetting<SheetConfig>("sheet_config"); // trust DB result, including null
-    } catch { return null; }
+      return await getAppSetting<SheetConfig>("sheet_config");
+    } catch {
+      return null;
+    }
   }
-  try {
-    ensureFile(SHEET_PATH, "null");
-    return JSON.parse(fs.readFileSync(SHEET_PATH, "utf-8"));
-  } catch { return null; }
+  return readJsonFile<SheetConfig | null>(SHEET_PATH, null);
 }
 
 export async function writeSheetConfig(cfg: SheetConfig): Promise<void> {
@@ -200,7 +218,10 @@ export async function writeSheetConfig(cfg: SheetConfig): Promise<void> {
     await setAppSetting("sheet_config", cfg);
     return;
   }
-  try { ensureFile(SHEET_PATH, "null"); fs.writeFileSync(SHEET_PATH, JSON.stringify(cfg, null, 2)); } catch { /* read-only fs */ }
+  try {
+    ensureFile(SHEET_PATH, "null");
+    fs.writeFileSync(SHEET_PATH, JSON.stringify(cfg, null, 2));
+  } catch { /* read-only file system (Vercel) */ }
 }
 
 export async function clearSheetConfig(): Promise<void> {
@@ -209,5 +230,8 @@ export async function clearSheetConfig(): Promise<void> {
     await setAppSetting("sheet_config", null);
     return;
   }
-  try { ensureFile(SHEET_PATH, "null"); fs.writeFileSync(SHEET_PATH, "null"); } catch { /* read-only fs */ }
+  try {
+    ensureFile(SHEET_PATH, "null");
+    fs.writeFileSync(SHEET_PATH, "null");
+  } catch { /* read-only file system (Vercel) */ }
 }

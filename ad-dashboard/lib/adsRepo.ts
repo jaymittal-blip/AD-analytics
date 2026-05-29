@@ -1,10 +1,3 @@
-/**
- * Central data access layer.
- * All reads and writes go through here — never import `db` directly from routes.
- *
- * Priority: Neon (DATABASE_URL set) → external API fallback (local dev / no DB)
- */
-
 import { Ad, AdClass } from "./types";
 
 const EXTERNAL_API = "https://mosaicfellowship.in/api/data/content/ads";

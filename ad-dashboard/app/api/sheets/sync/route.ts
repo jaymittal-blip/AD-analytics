@@ -11,7 +11,6 @@ function extractSheetId(url: string): string | null {
   return m ? m[1] : null;
 }
 
-/** Parse a single CSV row respecting double-quoted fields. */
 function parseCSVRow(line: string): string[] {
   const result: string[] = [];
   let cur = "";
@@ -73,19 +72,17 @@ function parseCSVToAds(csvText: string): { ads: Ad[]; rowErrors: string[] } {
   const lines = csvText.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").filter(l => l.trim());
   if (lines.length < 2) return { ads: [], rowErrors: ["Sheet is empty"] };
 
-  const rawHeaders = parseCSVRow(lines[0]);
-  // Normalise headers and drop blank trailing columns
-  const headers = rawHeaders.map(h => h.trim().toLowerCase().replace(/\s+/g, "_"));
+  const headers = parseCSVRow(lines[0]).map(h => h.trim().toLowerCase().replace(/\s+/g, "_"));
 
   const ads: Ad[] = [];
   const rowErrors: string[] = [];
 
   for (let i = 1; i < lines.length; i++) {
     const cols = parseCSVRow(lines[i]);
-    if (cols.every(c => !c.trim())) continue;           // skip fully blank rows
+    if (cols.every(c => !c.trim())) continue;
     const record: Record<string, string> = {};
     headers.forEach((h, idx) => {
-      if (h) record[h] = (cols[idx] ?? "").trim();      // skip blank-header columns
+      if (h) record[h] = (cols[idx] ?? "").trim();
     });
     if (!record.ad_id) { rowErrors.push(`Row ${i + 1}: missing ad_id`); continue; }
     ads.push(toAd(record));
@@ -104,7 +101,6 @@ export async function POST(req: NextRequest) {
       error: "Invalid Google Sheets URL. Expected: https://docs.google.com/spreadsheets/d/SHEET_ID/...",
     }, { status: 400 });
 
-    // ── Strategy 1: OAuth (private sheets) ────────────────────────────────────
     const tokens = await readTokens();
     if (tokens && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
       const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -138,8 +134,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, ...result, errors: rowErrors, total: ads.length });
     }
 
-    // ── Strategy 2: Google Visualization API — works for "Anyone with the link" sheets
-    //    including Google Workspace accounts where /export?format=csv is blocked.
+    // gviz works for Workspace "Anyone with the link" sheets where /export is blocked
     const gvizUrl  = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
     const gvizResp = await fetch(gvizUrl, { cache: "no-store" });
 
@@ -155,7 +150,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Strategy 3: classic /export CSV (fallback) ─────────────────────────────
     const csvUrl  = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=0`;
     const csvResp = await fetch(csvUrl, { cache: "no-store" });
     if (!csvResp.ok || (csvResp.headers.get("content-type") ?? "").includes("text/html")) {

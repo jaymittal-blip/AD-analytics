@@ -1,8 +1,3 @@
-/**
- * GET /api/sheets/auto-sync
- * Called by the dashboard poller every 2 minutes.
- * Re-fetches the saved Google Sheet (via gviz or OAuth) and upserts any changes.
- */
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import { readTokens, readSheetConfig, writeTokens, writeSheetConfig } from "@/lib/customStore";
@@ -90,15 +85,15 @@ async function detectAndQueueChanges(reason: "metrics" | "criteria" = "metrics")
   try {
     const { sql } = await import("@/lib/db");
 
-    // ── 1. Batch-fetch all current data (2 queries total, not N) ────────────
-    const allAds = await getAllAds();
-    const lastClassRows = await sql`SELECT ad_id, last_class FROM ads`;
-    const lastClassMap  = new Map<string, string | null>(
+    const [allAds, lastClassRows, criteria] = await Promise.all([
+      getAllAds(),
+      sql`SELECT ad_id, last_class FROM ads`,
+      getAppSetting<CriteriaMap>("criteria"),
+    ]);
+
+    const lastClassMap = new Map<string, string | null>(
       lastClassRows.map(r => [String(r.ad_id), r.last_class as string | null ?? null])
     );
-
-    // ── 2. Always fetch criteria — needed for ended-ad reclassification too ──
-    const criteria = await getAppSetting<CriteriaMap>("criteria");
 
     const changes: Array<{
       ad_id: string; from_class: string | null; to_class: string;
@@ -106,17 +101,14 @@ async function detectAndQueueChanges(reason: "metrics" | "criteria" = "metrics")
     }> = [];
     const toUpdate: Array<{ adId: string; newClass: string }> = [];
 
-    // ── 3. Classify all ads in memory ────────────────────────────────────────
     for (const ad of allAds) {
-      const newClass = criteria ? classifyWithCriteria(ad, criteria) : null;
-
+      const newClass  = criteria ? classifyWithCriteria(ad, criteria) : null;
       if (newClass === null) continue;
 
       const lastClass = lastClassMap.get(ad.ad_id) ?? null;
       if (newClass === lastClass) continue;
 
       if (lastClass !== null) {
-        // Real category change — queue an alert
         changes.push({
           ad_id:         ad.ad_id,
           from_class:    lastClass,
@@ -132,12 +124,10 @@ async function detectAndQueueChanges(reason: "metrics" | "criteria" = "metrics")
       toUpdate.push({ adId: ad.ad_id, newClass });
     }
 
-    // ── 4. Batch-update last_class for changed/initialised ads ───────────────
     for (const { adId, newClass } of toUpdate) {
       await sql`UPDATE ads SET last_class = ${newClass} WHERE ad_id = ${adId}`;
     }
 
-    // ── 5. Record changes and trigger instant alerts ──────────────────────────
     if (changes.length > 0) {
       await recordCategoryChanges(changes);
       const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
