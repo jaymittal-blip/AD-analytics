@@ -255,8 +255,10 @@ export default function NewAdPage() {
   async function handleUnsync() {
     await fetch("/api/sheets/unsync", { method: "POST" });
     setSheetUrl("");
-    await fetchSheetsStatus();
+    // Clear the card immediately so URL doesn't linger while re-fetch is in-flight
+    setSheetStatus(prev => prev ? { ...prev, sheetConfig: null } : null);
     setSyncMsg({ ok: true, text: "Sheet unsynced. Paste a new URL to sync a different sheet." });
+    fetchSheetsStatus().catch(() => {});
   }
 
   async function handleMetaConnect() {
@@ -443,7 +445,7 @@ export default function NewAdPage() {
                 {/* Connected sheet URL display */}
                 {sheetStatus?.sheetConfig?.sheetId && (
                   <div className="bg-secondary-container/20 border border-secondary/20 rounded-xl px-3 py-2.5 space-y-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-secondary">Connected Sheet</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-secondary">Last Connected Sheet</p>
                     <a
                       href={`https://docs.google.com/spreadsheets/d/${sheetStatus.sheetConfig.sheetId}/edit`}
                       target="_blank" rel="noopener noreferrer"
