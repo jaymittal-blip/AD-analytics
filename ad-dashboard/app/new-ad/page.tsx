@@ -143,7 +143,10 @@ export default function NewAdPage() {
   }, []);
 
   const fetchSheetsStatus = useCallback(async () => {
-    const [sr, cr] = await Promise.all([fetch("/api/sheets/status"), fetch("/api/sheets/config")]);
+    const [sr, cr] = await Promise.all([
+      fetch("/api/sheets/status", { cache: "no-store" }),
+      fetch("/api/sheets/config",  { cache: "no-store" }),
+    ]);
     const d = await sr.json() as SheetsStatus;
     setSheetStatus(d);
     if (d.sheetConfig?.sheetId && d.sheetConfig.sheetId !== "apps-script") {
@@ -239,8 +242,16 @@ export default function NewAdPage() {
       const r    = await fetch("/api/sheets/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sheetUrl: sheetUrl.trim() }) });
       const data = await r.json();
       if (data.error) throw new Error(data.error);
+
+      // Optimistically update connected state so Unsync button appears immediately
+      const m = sheetUrl.trim().match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      if (m?.[1]) {
+        const newConfig = { sheetId: m[1], sheetName: sheetUrl.trim(), lastSync: new Date().toISOString() };
+        setSheetStatus(prev => prev ? { ...prev, sheetConfig: newConfig } : { oauthReady: false, connected: false, sheetConfig: newConfig });
+      }
+
       setSyncMsg({ ok: true, text: `Synced ${data.total} rows — ${data.added} added, ${data.updated} updated.` });
-      await fetchSheetsStatus();
+      fetchSheetsStatus().catch(() => {}); // background re-confirm from DB
       router.refresh();
       setTimeout(() => router.push("/"), 1500);
     } catch (err) { setSyncMsg({ ok: false, text: String(err) }); }
