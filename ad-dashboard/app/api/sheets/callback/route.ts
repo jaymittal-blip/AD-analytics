@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const { tokens } = await oauth2.getToken(code);
-    writeTokens({
+    await writeTokens({
       access_token:  tokens.access_token!,
       refresh_token: tokens.refresh_token!,
       expiry_date:   tokens.expiry_date!,

@@ -137,7 +137,9 @@ function rowToAd(r: Record<string, unknown>): Ad {
   } as Ad;
 }
 
-// ── Google OAuth tokens (always file-based — not sensitive enough for DB) ─────
+// ── Google OAuth tokens ───────────────────────────────────────────────────────
+// DB-first (survives Vercel cold starts / read-only file system).
+// File is used as local-dev fallback only and wrapped in try/catch.
 export interface GoogleTokens {
   access_token:  string;
   refresh_token: string;
@@ -145,35 +147,69 @@ export interface GoogleTokens {
   scope:         string;
 }
 
-export function readTokens(): GoogleTokens | null {
-  ensureFile(TOKENS_PATH, "null");
-  try { return JSON.parse(fs.readFileSync(TOKENS_PATH, "utf-8")); } catch { return null; }
+export async function readTokens(): Promise<GoogleTokens | null> {
+  if (process.env.DATABASE_URL) {
+    try {
+      const { getAppSetting } = await import("./usersRepo");
+      const t = await getAppSetting<GoogleTokens>("google_tokens");
+      if (t) return t;
+    } catch { /* fall through */ }
+  }
+  try {
+    ensureFile(TOKENS_PATH, "null");
+    return JSON.parse(fs.readFileSync(TOKENS_PATH, "utf-8"));
+  } catch { return null; }
 }
 
-export function writeTokens(t: GoogleTokens) {
-  ensureFile(TOKENS_PATH, "null");
-  fs.writeFileSync(TOKENS_PATH, JSON.stringify(t, null, 2));
+export async function writeTokens(t: GoogleTokens): Promise<void> {
+  if (process.env.DATABASE_URL) {
+    const { setAppSetting } = await import("./usersRepo");
+    await setAppSetting("google_tokens", t);
+    return;
+  }
+  try { ensureFile(TOKENS_PATH, "null"); fs.writeFileSync(TOKENS_PATH, JSON.stringify(t, null, 2)); } catch { /* read-only fs */ }
 }
 
-export function clearTokens() {
-  ensureFile(TOKENS_PATH, "null");
-  fs.writeFileSync(TOKENS_PATH, "null");
+export async function clearTokens(): Promise<void> {
+  if (process.env.DATABASE_URL) {
+    const { setAppSetting } = await import("./usersRepo");
+    await setAppSetting("google_tokens", null);
+    return;
+  }
+  try { ensureFile(TOKENS_PATH, "null"); fs.writeFileSync(TOKENS_PATH, "null"); } catch { /* read-only fs */ }
 }
 
 // ── Sheet config ──────────────────────────────────────────────────────────────
 export interface SheetConfig { sheetId: string; sheetName: string; lastSync: string | null }
 
-export function readSheetConfig(): SheetConfig | null {
-  ensureFile(SHEET_PATH, "null");
-  try { return JSON.parse(fs.readFileSync(SHEET_PATH, "utf-8")); } catch { return null; }
+export async function readSheetConfig(): Promise<SheetConfig | null> {
+  if (process.env.DATABASE_URL) {
+    try {
+      const { getAppSetting } = await import("./usersRepo");
+      const cfg = await getAppSetting<SheetConfig>("sheet_config");
+      if (cfg) return cfg;
+    } catch { /* fall through */ }
+  }
+  try {
+    ensureFile(SHEET_PATH, "null");
+    return JSON.parse(fs.readFileSync(SHEET_PATH, "utf-8"));
+  } catch { return null; }
 }
 
-export function writeSheetConfig(cfg: SheetConfig) {
-  ensureFile(SHEET_PATH, "null");
-  fs.writeFileSync(SHEET_PATH, JSON.stringify(cfg, null, 2));
+export async function writeSheetConfig(cfg: SheetConfig): Promise<void> {
+  if (process.env.DATABASE_URL) {
+    const { setAppSetting } = await import("./usersRepo");
+    await setAppSetting("sheet_config", cfg);
+    return;
+  }
+  try { ensureFile(SHEET_PATH, "null"); fs.writeFileSync(SHEET_PATH, JSON.stringify(cfg, null, 2)); } catch { /* read-only fs */ }
 }
 
-export function clearSheetConfig() {
-  ensureFile(SHEET_PATH, "null");
-  fs.writeFileSync(SHEET_PATH, "null");
+export async function clearSheetConfig(): Promise<void> {
+  if (process.env.DATABASE_URL) {
+    const { setAppSetting } = await import("./usersRepo");
+    await setAppSetting("sheet_config", null);
+    return;
+  }
+  try { ensureFile(SHEET_PATH, "null"); fs.writeFileSync(SHEET_PATH, "null"); } catch { /* read-only fs */ }
 }

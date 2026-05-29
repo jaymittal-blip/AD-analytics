@@ -160,12 +160,10 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const reason = (searchParams.get("reason") ?? "metrics") as "metrics" | "criteria";
 
-  const config = readSheetConfig();
-  // Don't try to re-fetch if the sheet was pushed via Apps Script
+  const [config, tokens] = await Promise.all([readSheetConfig(), readTokens()]);
   const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
   if (!config?.sheetId || config.sheetId === "apps-script") {
-    // No sheet to re-fetch; if this is a criteria-triggered call, still reclassify
     if (reason === "criteria") {
       await detectAndQueueChanges("criteria");
     }
@@ -174,7 +172,6 @@ export async function GET(req: NextRequest) {
   }
 
   const sheetId = config.sheetId;
-  const tokens  = readTokens();
 
   // ── OAuth path ─────────────────────────────────────────────────────────────
   if (tokens && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
@@ -185,7 +182,7 @@ export async function GET(req: NextRequest) {
         `${APP_URL}/api/sheets/callback`,
       );
       oauth2.setCredentials({ access_token: tokens.access_token, refresh_token: tokens.refresh_token, expiry_date: tokens.expiry_date });
-      oauth2.on("tokens", t => { if (t.access_token) writeTokens({ ...tokens, access_token: t.access_token, expiry_date: t.expiry_date! }); });
+      oauth2.on("tokens", t => { if (t.access_token) writeTokens({ ...tokens, access_token: t.access_token, expiry_date: t.expiry_date! }).catch(() => {}); });
 
       const sheets   = google.sheets({ version: "v4", auth: oauth2 });
       const response = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: "A1:ZZ" });
@@ -203,7 +200,7 @@ export async function GET(req: NextRequest) {
         ads.push(toAd(record));
       }
       const result = await upsertManyAds(ads, "sheets");
-      writeSheetConfig({ ...config, lastSync: new Date().toISOString() });
+      await writeSheetConfig({ ...config, lastSync: new Date().toISOString() });
       await detectAndQueueChanges(reason);
       triggerScheduledAlerts(APP_URL).catch(() => {});
       return NextResponse.json({ synced: true, ...result, total: ads.length });
@@ -219,7 +216,7 @@ export async function GET(req: NextRequest) {
       const ads = csvToAds(await gvizResp.text());
       if (ads.length === 0) return NextResponse.json({ synced: false, reason: "empty_sheet" });
       const result = await upsertManyAds(ads, "sheets");
-      writeSheetConfig({ ...config, lastSync: new Date().toISOString() });
+      await writeSheetConfig({ ...config, lastSync: new Date().toISOString() });
       await detectAndQueueChanges(reason);
       triggerScheduledAlerts(APP_URL).catch(() => {});
       return NextResponse.json({ synced: true, ...result, total: ads.length });

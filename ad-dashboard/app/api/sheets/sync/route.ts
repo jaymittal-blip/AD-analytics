@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
     }, { status: 400 });
 
     // ── Strategy 1: OAuth (private sheets) ────────────────────────────────────
-    const tokens = readTokens();
+    const tokens = await readTokens();
     if (tokens && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
       const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
       const oauth2  = new google.auth.OAuth2(
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
         `${APP_URL}/api/sheets/callback`,
       );
       oauth2.setCredentials({ access_token: tokens.access_token, refresh_token: tokens.refresh_token, expiry_date: tokens.expiry_date });
-      oauth2.on("tokens", t => { if (t.access_token) writeTokens({ ...tokens, access_token: t.access_token, expiry_date: t.expiry_date! }); });
+      oauth2.on("tokens", t => { if (t.access_token) writeTokens({ ...tokens, access_token: t.access_token, expiry_date: t.expiry_date! }).catch(() => {}); });
 
       const sheets   = google.sheets({ version: "v4", auth: oauth2 });
       const response = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: "A1:ZZ" });
@@ -134,11 +134,7 @@ export async function POST(req: NextRequest) {
       }
       const result = await upsertManyAds(ads, "sheets");
       const cfg = { sheetId, sheetName: sheetUrl, lastSync: new Date().toISOString() };
-      writeSheetConfig(cfg);
-      if (process.env.DATABASE_URL) {
-        const { setAppSetting } = await import("@/lib/usersRepo");
-        await setAppSetting("sheet_config", cfg);
-      }
+      await writeSheetConfig(cfg);
       return NextResponse.json({ success: true, ...result, errors: rowErrors, total: ads.length });
     }
 
@@ -154,12 +150,7 @@ export async function POST(req: NextRequest) {
         const { ads, rowErrors } = parseCSVToAds(csvText);
         if (ads.length === 0) return NextResponse.json({ error: "No valid rows found. Make sure the sheet has an ad_id column." }, { status: 400 });
         const result = await upsertManyAds(ads, "sheets");
-        const cfg2 = { sheetId, sheetName: sheetUrl, lastSync: new Date().toISOString() };
-        writeSheetConfig(cfg2);
-        if (process.env.DATABASE_URL) {
-          const { setAppSetting } = await import("@/lib/usersRepo");
-          await setAppSetting("sheet_config", cfg2);
-        }
+        await writeSheetConfig({ sheetId, sheetName: sheetUrl, lastSync: new Date().toISOString() });
         return NextResponse.json({ success: true, ...result, errors: rowErrors, total: ads.length });
       }
     }
@@ -177,12 +168,7 @@ export async function POST(req: NextRequest) {
     const { ads, rowErrors } = parseCSVToAds(csvText);
     if (ads.length === 0) return NextResponse.json({ error: "No valid rows found. Make sure the sheet has an ad_id column." }, { status: 400 });
     const result = await upsertManyAds(ads, "sheets");
-    const cfg3 = { sheetId, sheetName: sheetUrl, lastSync: new Date().toISOString() };
-    writeSheetConfig(cfg3);
-    if (process.env.DATABASE_URL) {
-      const { setAppSetting } = await import("@/lib/usersRepo");
-      await setAppSetting("sheet_config", cfg3);
-    }
+    await writeSheetConfig({ sheetId, sheetName: sheetUrl, lastSync: new Date().toISOString() });
     return NextResponse.json({ success: true, ...result, errors: rowErrors, total: ads.length });
 
   } catch (err) {

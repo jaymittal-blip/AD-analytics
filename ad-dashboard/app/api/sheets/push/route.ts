@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     });
 
     const result = await upsertManyAds(ads, "sheets");
-    writeSheetConfig({ sheetId: "apps-script", sheetName: "Google Sheets (Apps Script)", lastSync: new Date().toISOString() });
+    await writeSheetConfig({ sheetId: "apps-script", sheetName: "Google Sheets (Apps Script)", lastSync: new Date().toISOString() });
 
     return NextResponse.json({ success: true, ...result, total: ads.length, skipped });
   } catch (err) {
