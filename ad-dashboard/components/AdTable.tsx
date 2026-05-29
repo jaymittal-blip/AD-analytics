@@ -231,7 +231,10 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
       const r    = await fetch("/api/meta/ad/pause", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ad_id: modal.ad.ad_id }) });
       const data = await r.json();
       if (data.error) throw new Error(data.error);
-      setActionMsg({ ok: true, text: `Ad ${modal.ad.ad_id} paused in Meta Ads.` });
+      // Meta confirmed pause — write ENDED override so ad moves to Ended tab
+      await fetch("/api/ads/status-overrides", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ad_id: modal.ad.ad_id, status: "ENDED" }) });
+      onAdKilled?.(modal.ad.ad_id);
+      closeModal();
     } catch (err) { setActionMsg({ ok: false, text: String(err) }); }
     finally { setActing(false); }
   }
