@@ -143,15 +143,27 @@ export default function NewAdPage() {
     fetch("/api/meta/status").then(r => r.json()).then((d: MetaStatus) => setMetaStatus(d)).catch(() => {});
   }, []);
 
+  const LS_SHEET_KEY = "ad_intel_sheet_config";
+
   const fetchSheetsStatus = useCallback(async () => {
     const [sr, cr] = await Promise.all([
       fetch("/api/sheets/status", { cache: "no-store" }),
       fetch("/api/sheets/config",  { cache: "no-store" }),
     ]);
     const d = await sr.json() as SheetsStatus;
+
+    // If DB returns no config, fall back to localStorage (guards against DB read lag)
+    if (!d.sheetConfig) {
+      try {
+        const cached = localStorage.getItem(LS_SHEET_KEY);
+        if (cached) d.sheetConfig = JSON.parse(cached);
+      } catch { /* ignore */ }
+    }
+
     setSheetStatus(d);
     if (d.sheetConfig?.sheetId && d.sheetConfig.sheetId !== "apps-script") {
       setSheetUrl(`https://docs.google.com/spreadsheets/d/${d.sheetConfig.sheetId}/edit`);
+      setHasSynced(true);
     } else {
       setSheetUrl("");
     }
@@ -244,6 +256,12 @@ export default function NewAdPage() {
       const data = await r.json();
       if (data.error) throw new Error(data.error);
 
+      // Save to localStorage so Unsync button persists across refreshes
+      const m = sheetUrl.trim().match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      if (m?.[1]) {
+        const cfg = { sheetId: m[1], sheetName: sheetUrl.trim(), lastSync: new Date().toISOString() };
+        try { localStorage.setItem(LS_SHEET_KEY, JSON.stringify(cfg)); } catch { /* ignore */ }
+      }
       setHasSynced(true);
       setSyncMsg({ ok: true, text: `Synced ${data.total} rows — ${data.added} added, ${data.updated} updated.` });
       setTimeout(() => router.push("/"), 1500);
@@ -253,6 +271,7 @@ export default function NewAdPage() {
 
   async function handleDisconnect() {
     await fetch("/api/sheets/disconnect", { method: "POST" });
+    try { localStorage.removeItem(LS_SHEET_KEY); } catch { /* ignore */ }
     setSheetUrl("");
     await fetchSheetsStatus();
     setSyncMsg({ ok: true, text: "Google account disconnected." });
@@ -260,6 +279,7 @@ export default function NewAdPage() {
 
   async function handleUnsync() {
     await fetch("/api/sheets/unsync", { method: "POST" });
+    try { localStorage.removeItem(LS_SHEET_KEY); } catch { /* ignore */ }
     setSheetUrl("");
     setHasSynced(false);
     setSheetStatus(prev => prev ? { ...prev, sheetConfig: null } : null);
