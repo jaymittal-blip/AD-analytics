@@ -118,6 +118,7 @@ export default function NewAdPage() {
   // Google Sheets
   const [sheetUrl,    setSheetUrl]    = useState("");
   const [sheetStatus, setSheetStatus] = useState<SheetsStatus | null>(null);
+  const [hasSynced,   setHasSynced]   = useState(false);
   const [syncing,     setSyncing]     = useState(false);
   const [syncMsg,     setSyncMsg]     = useState<StatusMsg>(null);
 
@@ -243,15 +244,8 @@ export default function NewAdPage() {
       const data = await r.json();
       if (data.error) throw new Error(data.error);
 
-      // Optimistically update connected state so Unsync button appears immediately
-      const m = sheetUrl.trim().match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-      if (m?.[1]) {
-        const newConfig = { sheetId: m[1], sheetName: sheetUrl.trim(), lastSync: new Date().toISOString() };
-        setSheetStatus(prev => prev ? { ...prev, sheetConfig: newConfig } : { oauthReady: false, connected: false, sheetConfig: newConfig });
-      }
-
+      setHasSynced(true);
       setSyncMsg({ ok: true, text: `Synced ${data.total} rows — ${data.added} added, ${data.updated} updated.` });
-      router.refresh();
       setTimeout(() => router.push("/"), 1500);
     } catch (err) { setSyncMsg({ ok: false, text: String(err) }); }
     finally      { setSyncing(false); }
@@ -267,7 +261,7 @@ export default function NewAdPage() {
   async function handleUnsync() {
     await fetch("/api/sheets/unsync", { method: "POST" });
     setSheetUrl("");
-    // Clear the card immediately so URL doesn't linger while re-fetch is in-flight
+    setHasSynced(false);
     setSheetStatus(prev => prev ? { ...prev, sheetConfig: null } : null);
     setSyncMsg({ ok: true, text: "Sheet unsynced. Paste a new URL to sync a different sheet." });
     fetchSheetsStatus().catch(() => {});
@@ -455,7 +449,7 @@ export default function NewAdPage() {
                 </div>
 
                 {/* Connected sheet URL display */}
-                {sheetStatus?.sheetConfig?.sheetId && (
+                {(sheetStatus?.sheetConfig?.sheetId || hasSynced) && (
                   <div className="bg-secondary-container/20 border border-secondary/20 rounded-xl px-3 py-2.5 space-y-1">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-secondary">Last Connected Sheet</p>
                     <a
@@ -487,7 +481,7 @@ export default function NewAdPage() {
                   {syncing ? "Syncing…" : "Sync Now"}
                 </button>
 
-                {sheetStatus?.sheetConfig?.sheetId && (
+                {(sheetStatus?.sheetConfig?.sheetId || hasSynced) && (
                   <button onClick={handleUnsync}
                     className="w-full flex items-center justify-center gap-1.5 border border-outline-variant text-on-surface-variant py-1.5 rounded-xl text-[12px] hover:bg-surface-container transition-all">
                     <Link2Off size={13} strokeWidth={1.75} />
