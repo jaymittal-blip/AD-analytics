@@ -251,7 +251,6 @@ export default function NewAdPage() {
       }
 
       setSyncMsg({ ok: true, text: `Synced ${data.total} rows — ${data.added} added, ${data.updated} updated.` });
-      fetchSheetsStatus().catch(() => {}); // background re-confirm from DB
       router.refresh();
       setTimeout(() => router.push("/"), 1500);
     } catch (err) { setSyncMsg({ ok: false, text: String(err) }); }

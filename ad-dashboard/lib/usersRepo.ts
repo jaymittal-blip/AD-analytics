@@ -210,7 +210,14 @@ export async function markChangesSent(ids: number[], schedule: "instant" | "dail
 export async function getAppSetting<T>(key: string): Promise<T | null> {
   const sql = db();
   const rows = await sql`SELECT value FROM app_settings WHERE key = ${key}`;
-  return rows.length ? (rows[0].value as T) : null;
+  if (!rows.length) return null;
+  const raw = rows[0].value;
+  if (raw === null || raw === undefined) return null;
+  // Handle TEXT columns (returns string) and JSONB columns (returns parsed object)
+  if (typeof raw === "string") {
+    try { return JSON.parse(raw) as T; } catch { return null; }
+  }
+  return raw as T;
 }
 
 export async function setAppSetting(key: string, value: unknown): Promise<void> {
