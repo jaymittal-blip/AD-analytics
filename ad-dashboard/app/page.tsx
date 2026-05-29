@@ -1,6 +1,10 @@
+import { unstable_noStore as noStore } from "next/cache";
+import { getAllAds } from "@/lib/adsRepo";
 import Dashboard from "@/components/Dashboard";
 
-// All data is fetched client-side so the CDN never serves stale ad data
-export default function HomePage() {
-  return <Dashboard rawAds={[]} fetchedAt="" />;
+export default async function HomePage() {
+  noStore(); // opts out of all CDN and Next.js caching — always renders fresh from DB
+  const rawAds    = await getAllAds();
+  const fetchedAt = new Date().toISOString();
+  return <Dashboard rawAds={rawAds} fetchedAt={fetchedAt} />;
 }

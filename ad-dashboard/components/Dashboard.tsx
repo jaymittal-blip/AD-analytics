@@ -169,10 +169,10 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
     } catch { /* silent */ }
   }, [fetchFreshAds]);
 
-  // On mount: fetch current DB data immediately, then sync sheet in background
+  // On mount: sync sheet in background every 2 min; if no SSR data, fetch immediately
   useEffect(() => {
-    fetchFreshAds();         // show current data right away
-    pollAutoSync();          // sync sheet → update DB → re-fetch (runs in parallel)
+    if (initialAds.length === 0) fetchFreshAds(); // fallback if SSR had no data
+    pollAutoSync();
     const id = setInterval(pollAutoSync, POLL_INTERVAL_MS);
     return () => clearInterval(id);
   }, []);
