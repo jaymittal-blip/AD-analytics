@@ -162,6 +162,7 @@ export async function GET(req: NextRequest) {
   }
 
   const sheetId = config.sheetId;
+  const gid     = config.sheetName?.match(/[?&#]gid=(\d+)/)?.[1] ?? "0";
 
   // ── OAuth path ─────────────────────────────────────────────────────────────
   if (tokens && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
@@ -201,7 +202,7 @@ export async function GET(req: NextRequest) {
 
   // ── gviz path (public / Workspace "Anyone with the link") ──────────────────
   try {
-    const gvizResp = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`, { cache: "no-store" });
+    const gvizResp = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`, { cache: "no-store" });
     if (gvizResp.ok && !(gvizResp.headers.get("content-type") ?? "").includes("text/html")) {
       const ads = csvToAds(await gvizResp.text());
       if (ads.length === 0) return NextResponse.json({ synced: false, reason: "empty_sheet" });

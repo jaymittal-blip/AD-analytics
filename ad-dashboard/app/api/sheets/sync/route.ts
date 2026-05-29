@@ -11,6 +11,11 @@ function extractSheetId(url: string): string | null {
   return m ? m[1] : null;
 }
 
+function extractGid(url: string): string {
+  const m = url.match(/[?&#]gid=(\d+)/);
+  return m ? m[1] : "0";
+}
+
 function parseCSVRow(line: string): string[] {
   const result: string[] = [];
   let cur = "";
@@ -100,6 +105,7 @@ export async function POST(req: NextRequest) {
     if (!sheetId) return NextResponse.json({
       error: "Invalid Google Sheets URL. Expected: https://docs.google.com/spreadsheets/d/SHEET_ID/...",
     }, { status: 400 });
+    const gid = extractGid(sheetUrl);
 
     const tokens = await readTokens();
     if (tokens && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
@@ -135,7 +141,7 @@ export async function POST(req: NextRequest) {
     }
 
     // gviz works for Workspace "Anyone with the link" sheets where /export is blocked
-    const gvizUrl  = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
+    const gvizUrl  = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`;
     const gvizResp = await fetch(gvizUrl, { cache: "no-store" });
 
     if (gvizResp.ok) {
@@ -150,7 +156,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const csvUrl  = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=0`;
+    const csvUrl  = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
     const csvResp = await fetch(csvUrl, { cache: "no-store" });
     if (!csvResp.ok || (csvResp.headers.get("content-type") ?? "").includes("text/html")) {
       return NextResponse.json({
