@@ -453,13 +453,13 @@ export default function NewAdPage() {
                   <div className="bg-secondary-container/20 border border-secondary/20 rounded-xl px-3 py-2.5 space-y-1">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-secondary">Last Connected Sheet</p>
                     <a
-                      href={`https://docs.google.com/spreadsheets/d/${sheetStatus.sheetConfig.sheetId}/edit`}
+                      href={sheetUrl || (sheetStatus?.sheetConfig?.sheetId ? `https://docs.google.com/spreadsheets/d/${sheetStatus.sheetConfig.sheetId}/edit` : "#")}
                       target="_blank" rel="noopener noreferrer"
                       className="text-[12px] text-on-surface underline underline-offset-2 break-all line-clamp-1 hover:text-secondary transition-colors"
                     >
-                      {sheetUrl || `https://docs.google.com/spreadsheets/d/${sheetStatus.sheetConfig.sheetId}/edit`}
+                      {sheetUrl || (sheetStatus?.sheetConfig?.sheetId ? `https://docs.google.com/spreadsheets/d/${sheetStatus.sheetConfig.sheetId}/edit` : "")}
                     </a>
-                    {sheetStatus.sheetConfig.lastSync && (
+                    {sheetStatus?.sheetConfig?.lastSync && (
                       <p className="flex items-center gap-1 text-[11px] text-on-surface-variant">
                         <Clock size={11} strokeWidth={1.75} />
                         Last synced: {new Date(sheetStatus.sheetConfig.lastSync).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
