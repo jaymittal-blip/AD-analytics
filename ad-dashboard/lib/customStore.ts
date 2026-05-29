@@ -172,3 +172,8 @@ export function writeSheetConfig(cfg: SheetConfig) {
   ensureFile(SHEET_PATH, "null");
   fs.writeFileSync(SHEET_PATH, JSON.stringify(cfg, null, 2));
 }
+
+export function clearSheetConfig() {
+  ensureFile(SHEET_PATH, "null");
+  fs.writeFileSync(SHEET_PATH, "null");
+}

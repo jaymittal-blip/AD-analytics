@@ -247,8 +247,16 @@ export default function NewAdPage() {
 
   async function handleDisconnect() {
     await fetch("/api/sheets/disconnect", { method: "POST" });
+    setSheetUrl("");
     await fetchSheetsStatus();
     setSyncMsg({ ok: true, text: "Google account disconnected." });
+  }
+
+  async function handleUnsync() {
+    await fetch("/api/sheets/unsync", { method: "POST" });
+    setSheetUrl("");
+    await fetchSheetsStatus();
+    setSyncMsg({ ok: true, text: "Sheet unsynced. Paste a new URL to sync a different sheet." });
   }
 
   async function handleMetaConnect() {
@@ -432,15 +440,29 @@ export default function NewAdPage() {
                   </p>
                 </div>
 
+                {/* Connected sheet URL display */}
+                {sheetStatus?.sheetConfig?.sheetId && (
+                  <div className="bg-secondary-container/20 border border-secondary/20 rounded-xl px-3 py-2.5 space-y-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-secondary">Connected Sheet</p>
+                    <a
+                      href={`https://docs.google.com/spreadsheets/d/${sheetStatus.sheetConfig.sheetId}/edit`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="text-[12px] text-on-surface underline underline-offset-2 break-all line-clamp-1 hover:text-secondary transition-colors"
+                    >
+                      {sheetUrl || `https://docs.google.com/spreadsheets/d/${sheetStatus.sheetConfig.sheetId}/edit`}
+                    </a>
+                    {sheetStatus.sheetConfig.lastSync && (
+                      <p className="flex items-center gap-1 text-[11px] text-on-surface-variant">
+                        <Clock size={11} strokeWidth={1.75} />
+                        Last synced: {new Date(sheetStatus.sheetConfig.lastSync).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <div className="space-y-1">
                   <label className="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">Google Sheet URL</label>
                   <Input placeholder="https://docs.google.com/spreadsheets/d/…" value={sheetUrl} onChange={e => setSheetUrl(e.target.value)} />
-                  {sheetStatus?.sheetConfig?.lastSync && (
-                    <p className="flex items-center gap-1 text-[11px] text-on-surface-variant">
-                      <Clock size={11} strokeWidth={1.75} />
-                      Last synced: {new Date(sheetStatus.sheetConfig.lastSync).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  )}
                 </div>
 
                 <StatusBanner msg={syncMsg} />
@@ -450,6 +472,14 @@ export default function NewAdPage() {
                   {syncing ? <Loader2 size={14} strokeWidth={2} className="animate-spin" /> : <RefreshCw size={14} strokeWidth={2} />}
                   {syncing ? "Syncing…" : "Sync Now"}
                 </button>
+
+                {sheetStatus?.sheetConfig?.sheetId && (
+                  <button onClick={handleUnsync}
+                    className="w-full flex items-center justify-center gap-1.5 border border-outline-variant text-on-surface-variant py-1.5 rounded-xl text-[12px] hover:bg-surface-container transition-all">
+                    <Link2Off size={13} strokeWidth={1.75} />
+                    Unsync Sheet
+                  </button>
+                )}
 
                 {sheetStatus?.connected && (
                   <button onClick={handleDisconnect}

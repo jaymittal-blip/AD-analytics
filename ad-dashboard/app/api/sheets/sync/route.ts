@@ -133,7 +133,12 @@ export async function POST(req: NextRequest) {
         ads.push(toAd(record));
       }
       const result = await upsertManyAds(ads, "sheets");
-      writeSheetConfig({ sheetId, sheetName: sheetUrl, lastSync: new Date().toISOString() });
+      const cfg = { sheetId, sheetName: sheetUrl, lastSync: new Date().toISOString() };
+      writeSheetConfig(cfg);
+      if (process.env.DATABASE_URL) {
+        const { setAppSetting } = await import("@/lib/usersRepo");
+        await setAppSetting("sheet_config", cfg);
+      }
       return NextResponse.json({ success: true, ...result, errors: rowErrors, total: ads.length });
     }
 
@@ -149,7 +154,12 @@ export async function POST(req: NextRequest) {
         const { ads, rowErrors } = parseCSVToAds(csvText);
         if (ads.length === 0) return NextResponse.json({ error: "No valid rows found. Make sure the sheet has an ad_id column." }, { status: 400 });
         const result = await upsertManyAds(ads, "sheets");
-        writeSheetConfig({ sheetId, sheetName: sheetUrl, lastSync: new Date().toISOString() });
+        const cfg2 = { sheetId, sheetName: sheetUrl, lastSync: new Date().toISOString() };
+        writeSheetConfig(cfg2);
+        if (process.env.DATABASE_URL) {
+          const { setAppSetting } = await import("@/lib/usersRepo");
+          await setAppSetting("sheet_config", cfg2);
+        }
         return NextResponse.json({ success: true, ...result, errors: rowErrors, total: ads.length });
       }
     }
@@ -167,7 +177,12 @@ export async function POST(req: NextRequest) {
     const { ads, rowErrors } = parseCSVToAds(csvText);
     if (ads.length === 0) return NextResponse.json({ error: "No valid rows found. Make sure the sheet has an ad_id column." }, { status: 400 });
     const result = await upsertManyAds(ads, "sheets");
-    writeSheetConfig({ sheetId, sheetName: sheetUrl, lastSync: new Date().toISOString() });
+    const cfg3 = { sheetId, sheetName: sheetUrl, lastSync: new Date().toISOString() };
+    writeSheetConfig(cfg3);
+    if (process.env.DATABASE_URL) {
+      const { setAppSetting } = await import("@/lib/usersRepo");
+      await setAppSetting("sheet_config", cfg3);
+    }
     return NextResponse.json({ success: true, ...result, errors: rowErrors, total: ads.length });
 
   } catch (err) {
