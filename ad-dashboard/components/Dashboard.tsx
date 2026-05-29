@@ -212,10 +212,16 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
 
   const ads = useMemo(() =>
     liveAds.map(ad => {
+      // Compute ROAS live from revenue/spend so the table always reflects actual performance
+      const computedRoas = (ad.spend ?? 0) > 0
+        ? (ad.revenue ?? 0) / (ad.spend ?? 0)
+        : (ad.roas ?? 0);
+      const enriched = { ...ad, roas: computedRoas };
+
       if (statusOverrides[ad.ad_id] === "ENDED") {
-        return { ...ad, _class: "ENDED_OK" as Ad["_class"], status: "ENDED" };
+        return { ...enriched, _class: "ENDED_OK" as Ad["_class"], status: "ENDED" };
       }
-      return { ...ad, _class: classifyWithCriteria(ad, settings.criteria) };
+      return { ...enriched, _class: classifyWithCriteria(enriched, settings.criteria) };
     }) as Ad[]
   , [liveAds, settings.criteria, statusOverrides]);
 
