@@ -168,6 +168,11 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
     } catch { /* silent */ }
   }, [fetchFreshAds]);
 
+  // If no server-side data, fetch immediately on mount
+  useEffect(() => {
+    if (initialAds.length === 0) fetchFreshAds();
+  }, []);
+
   useEffect(() => {
     pollAutoSync();
     const id = setInterval(pollAutoSync, POLL_INTERVAL_MS);
