@@ -76,10 +76,13 @@ export const DEFAULT_VISIBLE_COLUMNS: string[] = [
 ];
 
 export const DEFAULT_CRITERIA: CriteriaMap = {
+  // Kill: ROAS < 2.5 AND (days >= 14 OR spend >= 30K)
+  // Rule order matters — evaluated left-to-right:
+  //   (days >= 14 OR spend >= 30K) AND ROAS < 2.5
   kill: [
-    { id: "k1", column: "roas",         operator: "<",  value: 2.5,   logic: "AND" },
     { id: "k2", column: "days_running", operator: ">=", value: 14,    logic: "AND" },
-    { id: "k3", column: "spend",        operator: ">=", value: 30000, logic: "AND" },
+    { id: "k3", column: "spend",        operator: ">=", value: 30000, logic: "OR"  },
+    { id: "k1", column: "roas",         operator: "<",  value: 2.5,   logic: "AND" },
   ],
   scale: [
     { id: "s1", column: "roas",  operator: ">=", value: 15,    logic: "AND" },
