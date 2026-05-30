@@ -17,13 +17,13 @@ export async function POST(req: NextRequest) {
   if (!increase_pct || increase_pct <= 0)
     return NextResponse.json({ error: "increase_pct must be a positive number." }, { status: 400 });
 
-  const token = creds.access_token;
+  const token   = creds.access_token;
+  const authHdr = { Authorization: `Bearer ${token}` };
 
   try {
-    // Step 1: get adset_id from the ad
     const adRes  = await fetch(
-      `https://graph.facebook.com/v19.0/${ad_id}?fields=adset_id&access_token=${token}`,
-      { cache: "no-store" }
+      `https://graph.facebook.com/v19.0/${ad_id}?fields=adset_id`,
+      { cache: "no-store", headers: authHdr }
     );
     const adData = await adRes.json();
     if (adData.error) return NextResponse.json({ error: adData.error.message }, { status: 400 });
@@ -32,10 +32,9 @@ export async function POST(req: NextRequest) {
     if (!adset_id)
       return NextResponse.json({ error: "Could not find Ad Set for this ad. Verify the Meta Ad ID." }, { status: 400 });
 
-    // Step 2: get current budget from adset
     const adsetRes  = await fetch(
-      `https://graph.facebook.com/v19.0/${adset_id}?fields=name,daily_budget,lifetime_budget&access_token=${token}`,
-      { cache: "no-store" }
+      `https://graph.facebook.com/v19.0/${adset_id}?fields=name,daily_budget,lifetime_budget`,
+      { cache: "no-store", headers: authHdr }
     );
     const adsetData = await adsetRes.json();
     if (adsetData.error) return NextResponse.json({ error: adsetData.error.message }, { status: 400 });
@@ -45,16 +44,14 @@ export async function POST(req: NextRequest) {
     if (!currentBudget)
       return NextResponse.json({ error: "Could not read current budget from Ad Set." }, { status: 400 });
 
-    // Meta budgets are in cents (USD) or paise (INR) — multiply by (1 + pct/100)
-    const newBudget     = Math.round(currentBudget * (1 + increase_pct / 100));
-    const budgetField   = isDaily ? "daily_budget" : "lifetime_budget";
+    const newBudget   = Math.round(currentBudget * (1 + increase_pct / 100));
+    const budgetField = isDaily ? "daily_budget" : "lifetime_budget";
 
-    // Step 3: update budget
     const updateRes  = await fetch(`https://graph.facebook.com/v19.0/${adset_id}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [budgetField]: String(newBudget), access_token: token }),
-      cache: "no-store",
+      method:  "POST",
+      headers: { ...authHdr, "Content-Type": "application/json" },
+      body:    JSON.stringify({ [budgetField]: String(newBudget) }),
+      cache:   "no-store",
     });
     const updateData = await updateRes.json();
     if (updateData.error) return NextResponse.json({ error: updateData.error.message }, { status: 400 });

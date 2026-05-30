@@ -17,10 +17,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const res = await fetch(`https://graph.facebook.com/v19.0/${ad_id}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "PAUSED", access_token: creds.access_token }),
-      cache: "no-store",
+      method:  "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${creds.access_token}` },
+      body:    JSON.stringify({ status: "PAUSED" }),
+      cache:   "no-store",
     });
     const data = await res.json();
     if (data.error) return NextResponse.json({ error: data.error.message }, { status: 400 });

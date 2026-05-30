@@ -14,8 +14,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const res  = await fetch(
-      `https://graph.facebook.com/v19.0/${acctId}?fields=name,account_status&access_token=${access_token.trim()}`,
-      { cache: "no-store" }
+      `https://graph.facebook.com/v19.0/${acctId}?fields=name,account_status`,
+      { cache: "no-store", headers: { Authorization: `Bearer ${access_token.trim()}` } }
     );
     const data = await res.json();
     if (data.error) {

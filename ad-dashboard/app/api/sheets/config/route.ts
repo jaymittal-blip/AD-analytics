@@ -9,6 +9,6 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   return NextResponse.json({
-    pushSecret: process.env.PUSH_SECRET ?? null,
+    pushSecretConfigured: !!process.env.PUSH_SECRET,
   });
 }
