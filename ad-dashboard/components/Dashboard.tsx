@@ -218,9 +218,10 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
   const ads = useMemo(() =>
     liveAds.map(ad => {
       // Compute ROAS live from revenue/spend so the table always reflects actual performance
-      const computedRoas = (ad.spend ?? 0) > 0
-        ? (ad.revenue ?? 0) / (ad.spend ?? 0)
-        : (ad.roas ?? 0);
+      // When spend=0 AND revenue=0, ROAS is 0 (no data) — never use stale stored value
+      const spend   = ad.spend   ?? 0;
+      const revenue = ad.revenue ?? 0;
+      const computedRoas = spend > 0 ? revenue / spend : revenue > 0 ? (ad.roas ?? 0) : 0;
       const enriched = { ...ad, roas: computedRoas };
 
       if (statusOverrides[ad.ad_id] === "ENDED") {
