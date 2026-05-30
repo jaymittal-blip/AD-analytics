@@ -171,6 +171,7 @@ export function classifyWithCriteria(
   if (evalRules(adFull, criteria.scale))   return "SCALE";
   if (evalRules(adFull, criteria.testing)) return "TESTING";
   if (evalRules(adFull, criteria.monitor)) return "MONITOR";
-  // Unclassified active ads → Testing (no criteria matched; needs more data)
-  return "TESTING";
+  // Proven active ads that fall between criteria gaps → Monitor (not Testing)
+  // Testing = explicitly not enough data; Monitor = enough data but no clear verdict
+  return "MONITOR";
 }
