@@ -158,7 +158,7 @@ export async function fetchFromExternalApi(): Promise<Ad[]> {
       Array.from({ length: totalPages - 1 }, (_, i) =>
         fetch(`${EXTERNAL_API}?page=${i + 2}&limit=${PAGE_SIZE}`, { cache: "no-store" })
           .then(r => r.json())
-          .then(body => body.data as unknown[])
+          .then(body => body.data as Ad[])
       )
     );
     ads.push(...rest.flat());
