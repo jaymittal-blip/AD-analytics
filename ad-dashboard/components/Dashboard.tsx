@@ -154,28 +154,31 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
     } catch { /* silent */ }
   }, []);
 
-  const pollAutoSync = useCallback(async () => {
+  const pollAutoSync = useCallback(async (currentSource?: string) => {
+    const src = currentSource ?? dataSource;
     try {
-      const res  = await fetch("/api/sheets/auto-sync", { cache: "no-store" });
-      const data = await res.json() as { synced: boolean; added?: number; updated?: number; total?: number };
-      // Always refresh from DB after every sync attempt — ensures latest data regardless of sheet changes
-      await fetchFreshAds();
-      if (data.synced) {
-        const added   = data.added   ?? 0;
-        const updated = data.updated ?? 0;
-        if (added + updated > 0) {
-          setSyncBadge(`Sheet synced — ${added} added, ${updated} updated`);
-          setTimeout(() => setSyncBadge(null), 6000);
+      if (src === "sheets") {
+        // Only sync Google Sheet when in Sheets mode
+        const res  = await fetch("/api/sheets/auto-sync", { cache: "no-store" });
+        const data = await res.json() as { synced: boolean; added?: number; updated?: number };
+        if (data.synced) {
+          const added   = data.added   ?? 0;
+          const updated = data.updated ?? 0;
+          if (added + updated > 0) {
+            setSyncBadge(`Sheet synced — ${added} added, ${updated} updated`);
+            setTimeout(() => setSyncBadge(null), 6000);
+          }
         }
       }
+      // Always refresh display from current source after poll
+      await fetchFreshAds();
     } catch { /* silent */ }
-  }, [fetchFreshAds]);
+  }, [fetchFreshAds, dataSource]);
 
-  // On mount: sync sheet in background every 2 min; if no SSR data, fetch immediately
+  // On mount: fetch immediately; poll every 2 min
   useEffect(() => {
-    if (initialAds.length === 0) fetchFreshAds(); // fallback if SSR had no data
-    pollAutoSync();
-    const id = setInterval(pollAutoSync, POLL_INTERVAL_MS);
+    fetchFreshAds();
+    const id = setInterval(() => pollAutoSync(), POLL_INTERVAL_MS);
     return () => clearInterval(id);
   }, []);
 

@@ -215,7 +215,7 @@ export async function getAppSetting<T>(key: string): Promise<T | null> {
   if (raw === null || raw === undefined) return null;
   // Handle TEXT columns (returns string) and JSONB columns (returns parsed object)
   if (typeof raw === "string") {
-    try { return JSON.parse(raw) as T; } catch { return null; }
+    try { return JSON.parse(raw) as T; } catch { return raw as unknown as T; }
   }
   return raw as T;
 }
