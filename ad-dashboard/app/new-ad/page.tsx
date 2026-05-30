@@ -166,6 +166,7 @@ export default function NewAdPage() {
       setHasSynced(true);
     } else {
       setSheetUrl("");
+      setHasSynced(false);
     }
     await cr.json();
   }, []);
@@ -279,12 +280,14 @@ export default function NewAdPage() {
 
   async function handleUnsync() {
     await fetch("/api/sheets/unsync", { method: "POST" });
+    // Clear localStorage first so fetchSheetsStatus fallback never restores the old config
     try { localStorage.removeItem(LS_SHEET_KEY); } catch { /* ignore */ }
+    // Optimistic clear — no background re-fetch (Neon read lag can return stale config
+    // and override this clear if we call fetchSheetsStatus immediately after the write)
     setSheetUrl("");
     setHasSynced(false);
     setSheetStatus(prev => prev ? { ...prev, sheetConfig: null } : null);
     setSyncMsg({ ok: true, text: "Sheet unsynced. Paste a new URL to sync a different sheet." });
-    fetchSheetsStatus().catch(() => {});
   }
 
   async function handleMetaConnect() {
