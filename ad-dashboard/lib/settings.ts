@@ -76,22 +76,33 @@ export const DEFAULT_VISIBLE_COLUMNS: string[] = [
 ];
 
 export const DEFAULT_CRITERIA: CriteriaMap = {
-  // Kill: ROAS < 2.5 AND (days >= 14 OR spend >= 30K)
-  // Rule order matters — evaluated left-to-right:
-  //   (days >= 14 OR spend >= 30K) AND ROAS < 2.5
+  // Rules evaluate left-to-right. OR conditions are placed first so they
+  // group correctly: (A OR B) AND C AND D
+  //
+  // Kill: (days>=14 OR spend>=30K) AND ROAS<8 AND CPC>2.5
   kill: [
-    { id: "k2", column: "days_running", operator: ">=", value: 14,    logic: "AND" },
-    { id: "k3", column: "spend",        operator: ">=", value: 30000, logic: "OR"  },
-    { id: "k1", column: "roas",         operator: "<",  value: 2.5,   logic: "AND" },
+    { id: "k1", column: "days_running", operator: ">=", value: 14,    logic: "AND" },
+    { id: "k2", column: "spend",        operator: ">=", value: 30000, logic: "OR"  },
+    { id: "k3", column: "roas",         operator: "<",  value: 8,     logic: "AND" },
+    { id: "k4", column: "cpc",          operator: ">",  value: 2.5,   logic: "AND" },
   ],
+  // Scale: (days>=14 OR spend>=30K) AND ROAS>=30 AND CTR>=3 AND CPC<=2
   scale: [
-    { id: "s1", column: "roas",  operator: ">=", value: 15,    logic: "AND" },
-    { id: "s2", column: "spend", operator: ">=", value: 20000, logic: "AND" },
+    { id: "s1", column: "days_running", operator: ">=", value: 14,    logic: "AND" },
+    { id: "s2", column: "spend",        operator: ">=", value: 30000, logic: "OR"  },
+    { id: "s3", column: "roas",         operator: ">=", value: 30,    logic: "AND" },
+    { id: "s4", column: "ctr",          operator: ">=", value: 3,     logic: "AND" },
+    { id: "s5", column: "cpc",          operator: "<=", value: 2,     logic: "AND" },
   ],
+  // Monitor: (days>=14 OR spend>=30K) AND ROAS>=8 AND ROAS<30 AND CTR>=2
   monitor: [
-    { id: "m1", column: "roas", operator: ">=", value: 2.5, logic: "AND" },
-    { id: "m2", column: "roas", operator: "<",  value: 15,  logic: "AND" },
+    { id: "m1", column: "days_running", operator: ">=", value: 14,    logic: "AND" },
+    { id: "m2", column: "spend",        operator: ">=", value: 30000, logic: "OR"  },
+    { id: "m3", column: "roas",         operator: ">=", value: 8,     logic: "AND" },
+    { id: "m4", column: "roas",         operator: "<",  value: 30,    logic: "AND" },
+    { id: "m5", column: "ctr",          operator: ">=", value: 2,     logic: "AND" },
   ],
+  // Testing: days<14 AND spend<30K (both insufficient → not enough data)
   testing: [
     { id: "t1", column: "days_running", operator: "<", value: 14,    logic: "AND" },
     { id: "t2", column: "spend",        operator: "<", value: 30000, logic: "AND" },
