@@ -144,7 +144,7 @@ export async function deleteAd(ad_id: string): Promise<void> {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async function fetchFromExternalApi(): Promise<Ad[]> {
+export async function fetchFromExternalApi(): Promise<Ad[]> {
   const ads: Ad[] = [];
   let page = 1, hasNext = true;
   while (hasNext) {

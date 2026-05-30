@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllAds, getAdById, upsertAd } from "@/lib/adsRepo";
+import { getAllAds, getAdById, upsertAd, fetchFromExternalApi } from "@/lib/adsRepo";
 import { Ad } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const ads = await getAllAds();
-    return NextResponse.json({ ads, fetchedAt: new Date().toISOString() });
+    // Check user's chosen data source — API (live) or Sheets (DB-synced)
+    let source = "api";
+    try {
+      const { getAppSetting } = await import("@/lib/usersRepo");
+      source = await getAppSetting<string>("data_source") ?? "api";
+    } catch { /* default to api */ }
+
+    const ads = source === "sheets" ? await getAllAds() : await fetchFromExternalApi();
+    return NextResponse.json({ ads, fetchedAt: new Date().toISOString(), source });
   } catch (err) {
     console.error("[GET /api/ads]", err);
     return NextResponse.json({ error: "Failed to fetch ads" }, { status: 500 });

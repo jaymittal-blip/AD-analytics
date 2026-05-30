@@ -129,6 +129,36 @@ export default function SettingsPage() {
   const [sendMsg,     setSendMsg]     = useState<{ ok: boolean; text: string } | null>(null);
   const isMount = useRef(true);
 
+  // ── Data Source ────────────────────────────────────────────────────────────
+  const [dataSource, setDataSource] = useState<"api" | "sheets">("api");
+  const [dsLoading,  setDsLoading]  = useState(false);
+  const [dsMsg,      setDsMsg]      = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/data-source", { cache: "no-store" })
+      .then(r => r.json())
+      .then((d: { source: "api" | "sheets" }) => setDataSource(d.source))
+      .catch(() => {});
+  }, []);
+
+  async function handleDataSourceChange(src: "api" | "sheets") {
+    setDsLoading(true); setDsMsg(null);
+    try {
+      const r = await fetch("/api/data-source", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: src }),
+      });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      setDataSource(src);
+      setDsMsg({ ok: true, text: `Switched to ${src === "api" ? "Live API" : "Google Sheets"}. Refresh the dashboard to see updated data.` });
+    } catch (err) {
+      setDsMsg({ ok: false, text: String(err) });
+    } finally {
+      setDsLoading(false);
+    }
+  }
+
   // ── Criteria changed warning ───────────────────────────────────────────────
   const [criteriaChangedSinceLastSave, setCriteriaChangedSinceLastSave] = useState(false);
   const prevCriteria = useRef(JSON.stringify(settings.criteria));
@@ -716,6 +746,68 @@ export default function SettingsPage() {
                   </div>
                 )}
               </div>
+            </div>
+          </Section>
+
+          {/* ── Section 5: Data Source ── */}
+          <Section Icon={SlidersHorizontal} title="Data Source" subtitle="Choose where the dashboard pulls ad data from.">
+            <div className="bg-surface-container rounded-xl p-4 space-y-4">
+              {/* API option */}
+              <button
+                onClick={() => handleDataSourceChange("api")}
+                disabled={dsLoading}
+                className={`w-full flex items-start gap-3 p-3 rounded-xl border-2 transition-all text-left ${
+                  dataSource === "api"
+                    ? "border-primary bg-primary/5"
+                    : "border-outline-variant hover:border-outline"
+                }`}
+              >
+                <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                  dataSource === "api" ? "border-primary" : "border-outline-variant"
+                }`}>
+                  {dataSource === "api" && <div className="w-2 h-2 rounded-full bg-primary" />}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-on-surface">Live API</p>
+                  <p className="text-[11px] text-on-surface-variant mt-0.5">
+                    Fetches directly from <span className="font-mono text-primary">mosaicfellowship.in/api/data/content/ads</span> (pages 1–8) on every load. Always up-to-date, no sync needed.
+                  </p>
+                </div>
+              </button>
+
+              {/* Sheets option */}
+              <button
+                onClick={() => handleDataSourceChange("sheets")}
+                disabled={dsLoading}
+                className={`w-full flex items-start gap-3 p-3 rounded-xl border-2 transition-all text-left ${
+                  dataSource === "sheets"
+                    ? "border-tertiary bg-tertiary/5"
+                    : "border-outline-variant hover:border-outline"
+                }`}
+              >
+                <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                  dataSource === "sheets" ? "border-tertiary" : "border-outline-variant"
+                }`}>
+                  {dataSource === "sheets" && <div className="w-2 h-2 rounded-full bg-tertiary" />}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-on-surface">Google Sheets</p>
+                  <p className="text-[11px] text-on-surface-variant mt-0.5">
+                    Uses data synced from your connected Google Sheet. Auto-syncs every 2 minutes. Useful for custom or overridden data.
+                  </p>
+                </div>
+              </button>
+
+              {dsMsg && (
+                <div className={`flex items-start gap-2 px-3 py-2.5 rounded-xl border text-[12px] ${
+                  dsMsg.ok
+                    ? "bg-secondary-container/50 border-secondary/30 text-on-secondary-container"
+                    : "bg-error-container/30 border-error/20 text-error"
+                }`}>
+                  {dsMsg.ok ? <Check size={13} strokeWidth={2} className="mt-0.5 shrink-0" /> : <AlertCircle size={13} strokeWidth={2} className="mt-0.5 shrink-0" />}
+                  <span>{dsMsg.text}</span>
+                </div>
+              )}
             </div>
           </Section>
 

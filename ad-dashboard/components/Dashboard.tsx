@@ -137,6 +137,7 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
   const [syncBadge,       setSyncBadge]       = useState<string | null>(null);
   const [liveAds,         setLiveAds]         = useState<Ad[]>(initialAds);
   const [fetchedAt,       setFetchedAt]       = useState(initialFetchedAt);
+  const [dataSource,      setDataSource]      = useState<"api" | "sheets">("api");
   const [overdueEntries,  setOverdueEntries]  = useState<RevisitEntry[]>([]);
   const [revisitDueIds,   setRevisitDueIds]   = useState<Set<string>>(new Set());
   const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
@@ -144,10 +145,11 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
   const fetchFreshAds = useCallback(async () => {
     try {
       const res  = await fetch("/api/ads", { cache: "no-store" });
-      const data = await res.json() as { ads: Ad[]; fetchedAt: string };
+      const data = await res.json() as { ads: Ad[]; fetchedAt: string; source?: string };
       if (Array.isArray(data.ads)) {
         setLiveAds(data.ads);
         setFetchedAt(data.fetchedAt);
+        if (data.source) setDataSource(data.source as "api" | "sheets");
       }
     } catch { /* silent */ }
   }, []);
@@ -275,6 +277,16 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
         <div>
           <h2 className="text-sm font-extrabold text-on-surface leading-tight tracking-tight">Ad Performance</h2>
           <p className="text-[10px] text-on-surface-variant">{ads.length} ads · {fetchedDate}</p>
+        </div>
+
+        {/* Data source badge */}
+        <div className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg border ${
+          dataSource === "api"
+            ? "bg-primary/10 border-primary/20 text-primary"
+            : "bg-tertiary/10 border-tertiary/20 text-tertiary"
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${dataSource === "api" ? "bg-primary" : "bg-tertiary"}`} />
+          {dataSource === "api" ? "Live API" : "Google Sheets"}
         </div>
 
         {syncBadge && (
