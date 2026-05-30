@@ -145,19 +145,25 @@ export async function deleteAd(ad_id: string): Promise<void> {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 export async function fetchFromExternalApi(): Promise<Ad[]> {
-  const ads: Ad[] = [];
-  let page = 1, hasNext = true;
-  while (hasNext) {
-    const res = await fetch(
-      `${EXTERNAL_API}?page=${page}&limit=${PAGE_SIZE}`,
-      { cache: "no-store" }
+  // Page 1 first — needed to discover total_pages from pagination
+  const first = await fetch(`${EXTERNAL_API}?page=1&limit=${PAGE_SIZE}`, { cache: "no-store" });
+  if (!first.ok) throw new Error(`External API error on page 1: ${first.status}`);
+  const firstBody = await first.json();
+  const ads: Ad[] = [...firstBody.data];
+  const totalPages: number = firstBody.pagination?.total_pages ?? 1;
+
+  // Fetch remaining pages in parallel — all at once instead of sequentially
+  if (totalPages > 1) {
+    const rest = await Promise.all(
+      Array.from({ length: totalPages - 1 }, (_, i) =>
+        fetch(`${EXTERNAL_API}?page=${i + 2}&limit=${PAGE_SIZE}`, { cache: "no-store" })
+          .then(r => r.json())
+          .then(body => body.data as unknown[])
+      )
     );
-    if (!res.ok) throw new Error(`External API error at page ${page}: ${res.status}`);
-    const body = await res.json();
-    ads.push(...body.data);
-    hasNext = body.pagination.has_next;
-    page++;
+    ads.push(...rest.flat());
   }
+
   return ads;
 }
 
