@@ -4,7 +4,7 @@ import {
   createContext, useContext, useState, useEffect,
   useCallback, ReactNode,
 } from "react";
-import { AppSettings, DEFAULT_SETTINGS } from "@/lib/settings";
+import { AppSettings, DEFAULT_SETTINGS, CriteriaMap } from "@/lib/settings";
 
 interface SettingsCtx {
   settings:      AppSettings;
@@ -17,7 +17,8 @@ interface SettingsCtx {
 
 const Ctx = createContext<SettingsCtx | null>(null);
 
-const STORAGE_KEY = "ad-intel-settings-v2";
+// Bump version when defaults change — forces localStorage to be ignored
+const STORAGE_KEY = "ad-intel-settings-v3";
 
 export function useSettings() {
   const ctx = useContext(Ctx);
@@ -31,14 +32,38 @@ export default function SettingsProvider({ children }: { children: ReactNode }) 
   const [dirty,    setDirty]    = useState(false);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
-        setSaved(parsed);
-        setSettings(parsed);
-      }
-    } catch {}
+    async function loadSettings() {
+      // 1. Load local UI prefs (visible columns, email) from localStorage
+      let local: Partial<AppSettings> = {};
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) local = JSON.parse(raw);
+      } catch {}
+
+      // 2. Always fetch criteria from DB — DB is the source of truth for classification
+      try {
+        const res = await fetch("/api/settings/criteria", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json() as { criteria: CriteriaMap };
+          const dbCriteria = data.criteria;
+          const merged: AppSettings = {
+            ...DEFAULT_SETTINGS,
+            ...local,
+            criteria: dbCriteria,
+          };
+          setSaved(merged);
+          setSettings(merged);
+          return;
+        }
+      } catch {}
+
+      // Fallback: use localStorage or defaults
+      const fallback = { ...DEFAULT_SETTINGS, ...local };
+      setSaved(fallback);
+      setSettings(fallback);
+    }
+
+    loadSettings();
   }, []);
 
   const update = useCallback((patch: Partial<AppSettings>) => {
