@@ -95,11 +95,12 @@ type ColKey = (typeof ALL_COLUMNS)[number]["key"];
 const ALWAYS_ON = new Set<ColKey>(["ad_id", "_class"]);
 
 interface Props {
-  ads:          Ad[];
-  allAds?:      Ad[];
-  tab?:         TabId;
-  emptyMessage?: string;
-  onAdKilled?:  (adId: string) => void;
+  ads:             Ad[];
+  allAds?:         Ad[];
+  tab?:            TabId;
+  emptyMessage?:   string;
+  onAdKilled?:     (adId: string) => void;
+  hardMonitorIds?: Set<string>;
 }
 
 const CONFIDENCE_DOT: Record<string, string> = {
@@ -143,7 +144,7 @@ type ActionModal =
   | { type: "next-action"; ad: Ad }
   | null;
 
-export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads in this category.", onAdKilled }: Props) {
+export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads in this category.", onAdKilled, hardMonitorIds }: Props) {
   const { settings } = useSettings();
   const [sortKey,  setSortKey]  = useState<SortKey>("spend");
   const [sortDir,  setSortDir]  = useState<SortDir>("desc");
@@ -490,6 +491,7 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
                     : ol.verdict === "LIKELY_KILL"
                     ? { label: "Likely Kill",  Icon: TrendingDown, cls: "text-error" }
                     : { label: "Uncertain",    Icon: HelpCircle,   cls: "text-on-surface-variant" };
+                  const isHard = tab === "monitor" && hardMonitorIds?.has(ad.ad_id);
                   return (
                     <td className="px-5 py-3">
                       <div className="relative group inline-flex flex-col gap-0.5 cursor-default">
@@ -498,6 +500,15 @@ export default function AdTable({ ads, allAds = [], tab, emptyMessage = "No ads 
                           <span className={`text-sm font-semibold ${verdictCfg.cls}`}>{verdictCfg.label}</span>
                           <span className={`w-2 h-2 rounded-full shrink-0 ${CONFIDENCE_DOT[ol.confidence]}`} title={`${ol.confidence} confidence`} />
                         </div>
+                        {tab === "monitor" && (
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md w-fit ${
+                            isHard
+                              ? "bg-tertiary/10 text-tertiary border border-tertiary/20"
+                              : "bg-surface-container text-on-surface-variant border border-outline-variant"
+                          }`}>
+                            {isHard ? "Hard Monitor" : "Soft Monitor"}
+                          </span>
+                        )}
                         <SuggestionTooltip reasons={ol.reasons} warnings={ol.warnings} />
                       </div>
                     </td>

@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { TabId, Ad } from "@/lib/types";
 import { breakdownByField, groupAds } from "@/lib/analyzer";
-import { classifyWithCriteria, CriteriaMap, Rule, NUMERIC_RULE_KEYS } from "@/lib/settings";
+import { classifyWithCriteria, evalRules, CriteriaMap, Rule, NUMERIC_RULE_KEYS } from "@/lib/settings";
 import { fmtINR } from "@/lib/format";
 import { useSettings } from "@/contexts/SettingsProvider";
 import AdTable from "./AdTable";
@@ -78,6 +78,21 @@ function CriteriaBanner({ tab, criteria }: { tab: TabId; criteria: CriteriaMap }
           </span>
         </span>
       ))}
+      {tab === "monitor" && (
+        <span className="ml-2 text-on-surface-variant">
+          {" · "}
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-tertiary inline-block" />
+            <strong className="text-tertiary">Hard Monitor</strong>
+          </span>
+          {" = matches all criteria above. "}
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-on-surface-variant/40 inline-block" />
+            <strong>Soft Monitor</strong>
+          </span>
+          {" = proven ad outside the criteria bands (e.g. ROAS > 30x but CTR < 3% — worth watching but needs custom judgment)."}
+        </span>
+      )}
     </>
   );
 }
@@ -239,6 +254,11 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
     const dates = ads.map(a => new Date(a.start_date).getTime()).filter(t => !isNaN(t));
     return dates.length > 0 ? new Date(Math.max(...dates)) : new Date();
   }, [ads]);
+
+  // Hard Monitor = explicitly matches monitor criteria; Soft = defaulted from no match
+  const hardMonitorIds = useMemo(() =>
+    new Set(ads.filter(ad => ad._class === "MONITOR" && evalRules(ad, settings.criteria.monitor)).map(a => a.ad_id))
+  , [ads, settings.criteria.monitor]);
 
   const filteredAll    = useMemo(() => applyFilters(ads, filters, revisitDueIds), [ads, filters, revisitDueIds]);
   const filteredGroups = useMemo(() => groupAds(filteredAll),       [filteredAll]);
@@ -410,7 +430,7 @@ export default function Dashboard({ rawAds: initialAds, fetchedAt: initialFetche
               </button>
             </div>
           </div>
-          <AdTable ads={tabAds} allAds={ads} tab={activeTab} emptyMessage="No ads in this category." onAdKilled={handleAdKilled} />
+          <AdTable ads={tabAds} allAds={ads} tab={activeTab} emptyMessage="No ads in this category." onAdKilled={handleAdKilled} hardMonitorIds={hardMonitorIds} />
         </div>
 
         <div className="h-4" />
