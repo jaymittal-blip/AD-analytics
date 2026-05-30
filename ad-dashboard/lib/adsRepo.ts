@@ -150,7 +150,7 @@ export async function fetchFromExternalApi(): Promise<Ad[]> {
   while (hasNext) {
     const res = await fetch(
       `${EXTERNAL_API}?page=${page}&limit=${PAGE_SIZE}`,
-      { next: { revalidate: 300 } }
+      { cache: "no-store" }
     );
     if (!res.ok) throw new Error(`External API error at page ${page}: ${res.status}`);
     const body = await res.json();
